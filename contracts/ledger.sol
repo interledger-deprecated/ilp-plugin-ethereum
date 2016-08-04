@@ -1,5 +1,12 @@
 contract Ledger {
 
+  /* possible states for a transfer to be in at a given moment */
+  enum State {
+    Propose,
+    Fulfill,
+    Cancel
+  }
+
   /* represents a single transfer. It will execute when the preimage of
    * condition is found, and will rollback if fulfill is called when the expiry
    * is passed.
@@ -11,10 +18,15 @@ contract Ledger {
     bytes32 condition;
     bytes16 uuid;
     uint expiry;
-    bool executed;
-    bool rejected;
     bytes data;
+    State state;
   }
+
+  /* notifications to listen to. Because the event size in solidity seems to be
+   * limited, a uuid is given to look up the other information. Target could be
+   * either the sender or the receiver.
+   */
+  event Update (address indexed target, bytes16 uuid);
 
   /* These represent all the money that is currently on hold or has been on
    * hold. They are retained so that transactions can't be played back
@@ -39,7 +51,7 @@ contract Ledger {
   ) public returns (int8) {
     if (transfers[uuid].uuid != bytes16(0x0)
     || uuid == 0x0) {
-      return -1
+      return -1;
     }
     transfers[uuid] = Transfer(
       msg.sender, /* sender */
@@ -48,11 +60,10 @@ contract Ledger {
       condition,  /* condition */
       uuid,       /* uuid */
       expiry,     /* expiry */
-      false,      /* executed? */
-      false,      /* rejected? */
-      data
+      data,       /* additional data */
+      State.Propose /* transfer state */
     );
-    return 0
+    return 0;
   }
 
   /* Fulfill a transfer, or trigger a rollback if past expiry. The uuid is
@@ -76,24 +87,34 @@ contract Ledger {
   ) public returns (int8) {
     var transfer = transfers[uuid];
     if (transfer.uuid == 0x0) {
-      return -1
-    } else if (transfer.executed || transfer.rejected) {
-      return -2
-    } else if (block.timestamp > transfer.expiry)
-      if (transfer.sender.send(transfer.amount) {
-        transfer.rejected = true;
+      return -1;
+    } else if (transfer.state != State.Propose) {
+      return -2;
+    } else if (block.timestamp > transfer.expiry) {
+      if (transfer.sender.send(transfer.amount)) {
+        transfer.state = State.Cancel;
         transfers[transfer.uuid] = transfer;
-        return 1
+
+        /* inform the two parties about this */
+        Update(transfer.receiver, transfer.uuid);
+        Update(transfer.sender, transfer.uuid);
+
+        return 1;
       } else {
-        return -3
+        return -3;
       }
     } else if (sha256(fulfillment) == transfer.condition) {
       if (transfer.receiver.send(transfer.amount)) {
-        transfer.executed = true;
+        transfer.state = State.Fulfill;
         transfers[transfer.uuid] = transfer;
-        return 0
+
+        /* inform the two parties about this */
+        Update(transfer.receiver, transfer.uuid);
+        Update(transfer.sender, transfer.uuid);
+
+        return 0;
       } else {
-        return -4
+        return -4;
       }
     }
   }
