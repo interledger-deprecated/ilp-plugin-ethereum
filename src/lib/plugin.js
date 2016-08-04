@@ -126,4 +126,24 @@ class PluginEthereum {
       )
     })
   }
+
+  _listen () {
+    const filter = this.web3.eth.filter({
+      address: this.contractAddress,
+      topics: [this.web3.coinbase]
+    })
+    filter.watch((error, result) => {
+      if (error) this._log(error)
+      this._handleUpdate(result)
+    })
+  }
+  
+  _handleUpdate (event) {
+    // TODO: what is this event made of?
+    this._log(JSON.stringify(event))
+  }
+
+  _log () {
+    console.log(...arguments)
+  }
 }
