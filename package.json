@@ -1,0 +1,26 @@
+{
+  "name": "ilp-plugin-ethereum",
+  "version": "1.0.0",
+  "description": "ILP Plugin for Ethereum",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/interledger/js-ilp-plugin-ethereum.git"
+  },
+  "keywords": [
+    "ilp",
+    "interledger",
+    "ledger",
+    "plugin",
+    "ethereum"
+  ],
+  "author": "Interledger Team",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/interledger/js-ilp-plugin-ethereum/issues"
+  },
+  "homepage": "https://github.com/interledger/js-ilp-plugin-ethereum#readme"
+}
