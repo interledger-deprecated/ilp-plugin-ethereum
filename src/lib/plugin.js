@@ -66,6 +66,16 @@ class PluginEthereum {
           }
         }
       }
+
+      const result = this.contract.call().createTransfer(
+        transferId,                                      // uuid
+        this.web3.toHex(fulfillment),                    // data
+        {
+          from: this.web3.eth.coinbase,
+          gas: 300000, // TODO?: specify this?
+        },
+        handle
+      )
     })
   }
 
