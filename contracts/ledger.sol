@@ -4,7 +4,8 @@ contract Ledger {
   enum State {
     Propose,
     Fulfill,
-    Cancel
+    Cancel,
+    Reject
   }
 
   /* represents a single transfer. It will execute when the preimage of
@@ -26,7 +27,7 @@ contract Ledger {
    * limited, a uuid is given to look up the other information. Target could be
    * either the sender or the receiver.
    */
-  event Update (address indexed target, bytes16 uuid);
+  event Update (bytes16 indexed uuid, State state);
 
   /* These represent all the money that is currently on hold or has been on
    * hold. They are retained so that transactions can't be played back
@@ -96,8 +97,7 @@ contract Ledger {
         transfers[transfer.uuid] = transfer;
 
         /* inform the two parties about this */
-        Update(transfer.receiver, transfer.uuid);
-        Update(transfer.sender, transfer.uuid);
+        Update(transfer.uuid, transfer.state);
 
         return 1;
       } else {
@@ -109,8 +109,7 @@ contract Ledger {
         transfers[transfer.uuid] = transfer;
 
         /* inform the two parties about this */
-        Update(transfer.receiver, transfer.uuid);
-        Update(transfer.sender, transfer.uuid);
+        Update(transfer.uuid, transfer.state);
 
         return 0;
       } else {
