@@ -88,6 +88,17 @@ class PluginEthereum extends EventEmitter {
     })
   }
 
+  getBalance () {
+    if (!this.web3) {
+      return Promise.reject(new Error('must be connected'))
+    }
+
+    return new Promise((resolve) => {
+      const balance = this.web3.eth.getBalance(this.web3.eth.coinbase)
+      resolve(balance.toString(10))
+    })
+  }
+
   _sendOptimistic (outgoingTransfer) {
     if (!this.web3) {
       return Promise.reject(new Error('must be connected'))
