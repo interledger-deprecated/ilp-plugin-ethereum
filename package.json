@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/interledger/js-ilp-plugin-ethereum/issues"
   },
-  "homepage": "https://github.com/interledger/js-ilp-plugin-ethereum#readme"
+  "homepage": "https://github.com/interledger/js-ilp-plugin-ethereum#readme",
+  "dependencies": {
+    "web3": "^0.17.0-alpha"
+  }
 }
