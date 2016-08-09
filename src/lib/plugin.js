@@ -1,10 +1,13 @@
 'use strict'
 
 const Web3 = require('web3')
+const EventEmitter = require('events')
 
-class PluginEthereum {
+class PluginEthereum extends EventEmitter {
   
   constructor (opts) {
+    super()
+
     this.provider = opts.provider // http address for web3 provider
 
     // information about ethereum contract
@@ -19,7 +22,7 @@ class PluginEthereum {
     this.web3 = new Web3(new Web3.providers.HttpProvider(this.provider))
 
     // connect to the contract
-    this.contractClass = web3.eth.contract(this.abi)
+    this.contractClass = this.web3.eth.contract(this.abi)
     this.contract = this.contractClass.at(this.contractAddress)
 
     // TODO: find out how to be notified of connect
@@ -49,6 +52,7 @@ class PluginEthereum {
   fulfillCondition (transferId, fulfillment) {
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
+        console.log("thing got mined: ", error, result)
         if (error) {
           reject(error)  
         } else {
@@ -56,18 +60,23 @@ class PluginEthereum {
           switch (this.web3.toDecimal(result)) {
             // success
             // TODO: return these emits with the transfer
-            0: this.emit('outgoing_cancel', transferId)
-            1: this.emit('outgoing_fulfill', transferId)
+            case 0:
+              this.emit('outgoing_cancel', transferId)
+              resolve()
+            case 1:
+              this.emit('outgoing_fulfill', transferId)
+              resolve()
             // failure
-            -1: reject(new Error(transferId + ' doesn\'t exist'))
-            -2: reject(new Error(transferId + ' is already complete'))
-            -3: reject(new Error('failed to return funds to sender'))
-            -4: reject(new Error('failed to send funds to receiver'))
+            case -1: reject(new Error(transferId + ' doesn\'t exist'))
+            case -2: reject(new Error(transferId + ' is already complete'))
+            case -3: reject(new Error('failed to return funds to sender'))
+            case -4: reject(new Error('failed to send funds to receiver'))
+            default: reject(new Error('unexpected error code: ', result))
           }
         }
       }
 
-      const result = this.contract.call().createTransfer(
+      const result = this.contract.fulfillTransfer(
         transferId,                                      // uuid
         this.web3.toHex(fulfillment),                    // data
         {
@@ -89,14 +98,34 @@ class PluginEthereum {
       from: this.web3.eth.coinbase,
       to:   outgoingTransfer.account,
       value: outgoingTransfer.amount,
-      data: this.web3.toHex(outgoingTransfer.data)
+      /* data: this.web3.toHex(outgoingTransfer.data) */
       // TODO?: will this need to include gas prices?
     }
+    this._log('sending a transfer')
     
     return new Promise((resolve, reject) => {
+      this._log('in the promise')
       this.web3.eth.sendTransaction(transfer, (error, result) => {
-        if (error) reject(error)
-        resolve()
+        this._log('got err:', error, '\n    and result:', result)
+        if (error) {
+          reject(error)
+        } else {
+          let receipt = null
+
+          this._log('TX Hash:', result)
+
+          const that = this
+          const pollReceipt = () => {
+            if (that.web3.eth.getTransactionReceipt(result)) {
+              that.emit('outgoing_transfer', transfer)
+            } else {
+              setTimeout(pollReceipt, 500)
+            }
+          }
+
+          pollReceipt()
+          resolve()
+        }
       })
     })
   }
@@ -108,24 +137,30 @@ class PluginEthereum {
 
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
+        console.log("thing got mined: ", error, result)
         if (error) {
           reject(error)
         } else {
           // handle all the error codes
           switch (this.web3.toDecimal(result)) {
             // success
-            0: this.emit('outgoing_prepare', outgoingTransfer)
+            case 0:
+              this.emit('outgoing_prepare', outgoingTransfer)
+              resolve()
             // failure
-            -1: reject(new Error('invalid uuid on transfer'))
+            case -1: reject(new Error('invalid uuid on transfer'))
+            default: reject(new Error('unexpected error code: ', result))
           }
         }
       }
 
-      const result = this.contract.call().createTransfer(
+      const result = this.contract.createTransfer(
         outgoingTransfer.account,                                  // receiver
-        this._conditionToHex(outgoingTransfer.executionCondition), // condition
+        //this._conditionToHex(outgoingTransfer.executionCondition), // condition
+        outgoingTransfer.executionCondition,
         outgoingTransfer.id,                                       // uuid
-        this._dateToTimestamp(outgoingTransfer.expiry),            // expiry
+        //this._dateToTimestamp(outgoingTransfer.expiry),            // expiry
+        this.web3.toHex(outgoingTransfer.expiry),
         this.web3.toHex(outgoingTransfer.data),                    // data
         {
           from: this.web3.eth.coinbase,
@@ -157,3 +192,5 @@ class PluginEthereum {
     console.log(...arguments)
   }
 }
+
+module.exports = PluginEthereum
