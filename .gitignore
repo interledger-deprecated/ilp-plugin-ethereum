@@ -1,6 +1,5 @@
 /node_modules/
 /coverage/
 /examples/
-/migrations/
 /build/
 npm-debug.log

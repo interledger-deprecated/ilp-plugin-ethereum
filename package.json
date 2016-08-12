@@ -4,7 +4,9 @@
   "description": "ILP Plugin for Ethereum",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "serve": "./node_modules/.bin/testrpc",
+    "truffle-test": "./node_modules/.bin/truffle test",
+    "test": "npm run serve 1>/dev/null & npm run truffle-test && kill %1"
   },
   "repository": {
     "type": "git",
