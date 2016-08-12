@@ -1,7 +1,7 @@
 module.exports = {
   build: {
-    "app.js": [
-      "javascripts/app.js"
+    "index.js": [
+      "index.js"
     ]
   },
   rpc: {
