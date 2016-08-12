@@ -52,36 +52,24 @@ class PluginEthereum extends EventEmitter {
   fulfillCondition (transferId, fulfillment) {
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
-        console.log("thing got mined: ", error, result)
+        console.log("got submitted: ", error, result)
         if (error) {
           reject(error)  
         } else {
-          // handle all the error codes
-          switch (this.web3.toDecimal(result)) {
-            // success
-            // TODO: return these emits with the transfer
-            case 0:
-              this.emit('outgoing_cancel', transferId)
+          this._log('Fulfill TX Hash:', result)
+          this._waitForReceipt(result)
+            .then(() => {
+              this._log('got receipt for TX')
               resolve()
-            case 1:
-              this.emit('outgoing_fulfill', transferId)
-              resolve()
-            // failure
-            case -1: reject(new Error(transferId + ' doesn\'t exist'))
-            case -2: reject(new Error(transferId + ' is already complete'))
-            case -3: reject(new Error('failed to return funds to sender'))
-            case -4: reject(new Error('failed to send funds to receiver'))
-            default: reject(new Error('unexpected error code: ', result))
-          }
+            })
         }
       }
 
-      const result = this.contract.fulfillTransfer(
+      const result = this.contract.fulfillTransfer.sendTransaction(
         transferId,                                      // uuid
         this.web3.toHex(fulfillment),                    // data
         {
           from: this.web3.eth.coinbase,
-          gas: 300000, // TODO?: specify this?
         },
         handle
       )
@@ -93,6 +81,7 @@ class PluginEthereum extends EventEmitter {
       return Promise.reject(new Error('must be connected'))
     }
 
+    this._log('getting the balance')
     return new Promise((resolve) => {
       const balance = this.web3.eth.getBalance(this.web3.eth.coinbase)
       resolve(balance.toString(10))
@@ -108,33 +97,24 @@ class PluginEthereum extends EventEmitter {
     const transfer = {
       from: this.web3.eth.coinbase,
       to:   outgoingTransfer.account,
-      value: outgoingTransfer.amount,
+      value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
       /* data: this.web3.toHex(outgoingTransfer.data) */
       // TODO?: will this need to include gas prices?
     }
     this._log('sending a transfer')
     
     return new Promise((resolve, reject) => {
-      this._log('in the promise')
       this.web3.eth.sendTransaction(transfer, (error, result) => {
         this._log('got err:', error, '\n    and result:', result)
         if (error) {
           reject(error)
         } else {
-          let receipt = null
-
-          this._log('TX Hash:', result)
-
-          const that = this
-          const pollReceipt = () => {
-            if (that.web3.eth.getTransactionReceipt(result)) {
-              that.emit('outgoing_transfer', transfer)
-            } else {
-              setTimeout(pollReceipt, 500)
-            }
-          }
-
-          pollReceipt()
+          this._log('Optimistic TX Hash:', result)
+          this._waitForReceipt(result)
+            .then(() => {
+              this._log('wait for receipt complete')
+              this.emit('outgoing_transfer', transfer)
+            })
           resolve()
         }
       })
@@ -148,27 +128,32 @@ class PluginEthereum extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
-        console.log("thing got mined: ", error, result)
+        console.log("got submitted: ", error, result)
         if (error) {
           reject(error)
         } else {
-          // handle all the error codes
-          switch (this.web3.toDecimal(result)) {
-            // success
-            case 0:
-              this.emit('outgoing_prepare', outgoingTransfer)
+          this._log('Universal TX Hash:', result)
+
+          this._waitForReceipt(result)
+            .then(() => {
+              this._log('universal transaction mined')
               resolve()
-            // failure
-            case -1: reject(new Error('invalid uuid on transfer'))
-            default: reject(new Error('unexpected error code: ', result))
-          }
+            })
+
+//         try {
+//            console.log('running')
+//            this.contract.allEvents().watch(/*{ uuid: outgoingTransfer.id },*/ (err, result) => {
+//              this._log('got error:  ', err, '\n    result: ', result)
+//              // err ? reject(err):resolve(result)
+//            })
+//          } catch (e) { console.error(e) }
         }
       }
 
-      const result = this.contract.createTransfer(
+      console.log(JSON.stringify([
         outgoingTransfer.account,                                  // receiver
         //this._conditionToHex(outgoingTransfer.executionCondition), // condition
-        outgoingTransfer.executionCondition,
+        this.web3.toHex(outgoingTransfer.executionCondition),
         outgoingTransfer.id,                                       // uuid
         //this._dateToTimestamp(outgoingTransfer.expiry),            // expiry
         this.web3.toHex(outgoingTransfer.expiry),
@@ -176,7 +161,19 @@ class PluginEthereum extends EventEmitter {
         {
           from: this.web3.eth.coinbase,
           gas: 300000, // TODO?: specify this?
-          value: outgoingTransfer.amount
+          value: this.web3.toWei(outgoingTransfer.amount, 'ether')
+        }
+      ], null, 2))
+
+      const result = this.contract.createTransfer.sendTransaction(
+        outgoingTransfer.account,                                  // receiver
+        this.web3.toHex(outgoingTransfer.executionCondition),
+        outgoingTransfer.id,                                       // uuid
+        this.web3.toHex(outgoingTransfer.expiry),
+        this.web3.toHex(outgoingTransfer.data),                    // data
+        {
+          from: this.web3.eth.coinbase,
+          value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
         },
         handle
       )
@@ -191,6 +188,26 @@ class PluginEthereum extends EventEmitter {
     filter.watch((error, result) => {
       if (error) this._log(error)
       this._handleUpdate(result)
+    })
+  }
+
+  _waitForReceipt(hash) {
+    return new Promise((resolve) => {
+      const that = this
+      const pollReceipt = () => {
+        try {
+          if (that.web3.eth.getTransactionReceipt(hash)) {
+            this._log('got receipt on', hash)
+            resolve()
+          } else {
+            setTimeout(pollReceipt, 500)
+          }
+        } catch (error) {
+          this._log('ERROR:', error) 
+        }
+      }
+
+      pollReceipt()
     })
   }
   
