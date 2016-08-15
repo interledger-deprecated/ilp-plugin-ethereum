@@ -6,7 +6,7 @@
   "scripts": {
     "serve": "./node_modules/.bin/testrpc",
     "truffle-test": "./node_modules/.bin/truffle test",
-    "test": "npm run serve 1>/dev/null & npm run truffle-test && kill %1"
+    "test": "npm run serve 1>/dev/null & npm run truffle-test ; kill %1"
   },
   "repository": {
     "type": "git",
@@ -28,6 +28,7 @@
   "dependencies": {
     "ethereumjs-testrpc": "^2.1.0",
     "truffle": "^2.0.7",
+    "uuid4": "^1.0.0",
     "web3": "^0.17.0-alpha"
   }
 }
