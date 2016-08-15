@@ -92,6 +92,8 @@ class PluginEthereum extends EventEmitter {
   _sendOptimistic (outgoingTransfer) {
     if (!this.web3) {
       return Promise.reject(new Error('must be connected'))
+    } else if (outgoingTransfer.amount < 0) {
+      return Promise.reject(new Error('amount must be greater than or equal to 0'))
     }
 
     // TODO?: forbid repeat IDs?
