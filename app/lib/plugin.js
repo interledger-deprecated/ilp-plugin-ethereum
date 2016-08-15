@@ -2,6 +2,7 @@
 
 const Web3 = require('web3')
 const EventEmitter = require('events')
+const debug = require('debug')('plugin')
 
 class PluginEthereum extends EventEmitter {
   
@@ -52,7 +53,7 @@ class PluginEthereum extends EventEmitter {
   fulfillCondition (transferId, fulfillment) {
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
-        console.log("got submitted: ", error, result)
+        this._log("got submitted: ", error, result)
         if (error) {
           reject(error)  
         } else {
@@ -128,7 +129,7 @@ class PluginEthereum extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
-        console.log("got submitted: ", error, result)
+        this._log("got submitted: ", error, result)
         if (error) {
           reject(error)
         } else {
@@ -150,7 +151,7 @@ class PluginEthereum extends EventEmitter {
         }
       }
 
-      console.log(JSON.stringify([
+      this._log(JSON.stringify([
         outgoingTransfer.account,                                  // receiver
         //this._conditionToHex(outgoingTransfer.executionCondition), // condition
         this.web3.toHex(outgoingTransfer.executionCondition),
@@ -217,7 +218,7 @@ class PluginEthereum extends EventEmitter {
   }
 
   _log () {
-    console.log(...arguments)
+    debug(...arguments)
   }
 }
 

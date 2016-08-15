@@ -6,7 +6,8 @@
   "scripts": {
     "serve": "./node_modules/.bin/testrpc",
     "truffle-test": "./node_modules/.bin/truffle test",
-    "test": "npm run serve 1>/dev/null & npm run truffle-test ; kill %1"
+    "test": "npm run serve 1>/dev/null & npm run truffle-test ; kill %1",
+    "verbose-test": "DEBUG=plugin npm test"
   },
   "repository": {
     "type": "git",
@@ -26,6 +27,7 @@
   },
   "homepage": "https://github.com/interledger/js-ilp-plugin-ethereum#readme",
   "dependencies": {
+    "debug": "^2.2.0",
     "ethereumjs-testrpc": "^2.1.0",
     "truffle": "^2.0.7",
     "uuid4": "^1.0.0",
