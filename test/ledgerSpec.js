@@ -3,7 +3,6 @@
 const uuid4 = require('uuid4')
 
 const uuid = () => ('0x' + uuid4().replace(/-/g, ''))
-const err = e => console.error(e.message)
 
 contract('Ledger', function (accounts) {
   describe('createTransfer', function () {
@@ -25,7 +24,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), 0x0, 'valid options should give result of 0')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should not create a transfer with uuid 0x0', function (done) {
@@ -36,7 +35,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), -1, 'uuid of 0 should give result of -1')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should not create a transfer with a repeat id', function (done) {
@@ -48,7 +47,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), -1, 'repeated uuid should give result of -1')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
   })
 
@@ -79,7 +78,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), 0, 'should return 0 on sucessful fulfill')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should not fulfill without a valid fulfillment', function (done) {
@@ -94,7 +93,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), -5, 'should return -5 on invalid fulfillment')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should expire an expired transfer', function (done) {
@@ -106,7 +105,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), 1, 'expired transfer should return 1 on fulfill')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should give an error code fulfilling a finished transfer', function (done) {
@@ -121,7 +120,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), -2, 'double fulfill should return -2')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
 
     it('should give an error code fulfilling a nonexistant transfer', function (done) {
@@ -130,7 +129,7 @@ contract('Ledger', function (accounts) {
           assert.equal(result.valueOf(), -1, 'nonexistant transfer should return -1 on fulfill')
           done()
         })
-        .catch(err)
+        .catch(done)
     })
   })
 })
