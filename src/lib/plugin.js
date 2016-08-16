@@ -5,6 +5,8 @@ const EventEmitter = require('events')
 const debug = require('debug')('plugin')
 const uuid4 = require('uuid4')
 
+const Provider = require('../model/provider')
+
 class PluginEthereum extends EventEmitter {
   
   constructor (opts) {
@@ -18,7 +20,7 @@ class PluginEthereum extends EventEmitter {
 
   connect () {
     if (this.web3) return
-    this.web3 = new Web3(new Web3.providers.HttpProvider(this.provider))
+    this.web3 = new Web3(Provider(this.provider))
 
     // TODO: find out how to be notified of connect
     this.emit('connect')
