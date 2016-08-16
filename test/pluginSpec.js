@@ -1,5 +1,7 @@
+const Web3 = require('web3')
 const Plugin = require('../src/lib/plugin')
 const uuid = require('uuid4')
+const debug = require('debug')('test')
 
 const TestRPC = require('ethereumjs-testrpc')
 const accounts = [
@@ -16,12 +18,13 @@ const accounts = [
 const assert = require('chai').assert
 const mockRequire = require('mock-require')
 const testrpc = () => {
-  console.log('getting mocked')
-  return TestRPC.provider()
+  debug('getting mocked')
+  return Web3.providers.HttpProvider('http://localhost:8545')
 }
 mockRequire('../src/model/provider', testrpc)
 
 describe('Plugin', function () {
+  
   describe('constructor', function () {
     it('should be a constructor', () => {
       assert.isFunction(Plugin, 'should be a contructor')
@@ -39,6 +42,10 @@ describe('Plugin', function () {
       this.plugin = new Plugin({
         provider: ''
       })
+    })
+
+    afterEach(function () {
+      this.plugin.disconnect()
     })
 
     it('should not start connected', function () {
@@ -83,11 +90,16 @@ describe('Plugin', function () {
       this.plugin.on('connect', done)
       this.plugin.connect()
     })
+
+    afterEach(function () {
+      this.plugin.disconnect()
+    })
     
     it('should emit \'outgoing transfer\'', function (done) {
       const id = uuid()
 
-      this.plugin.on('outgoing_transfer', (transfer) => {
+      this.plugin.once('outgoing_transfer', (transfer) => {
+        debug(JSON.stringify(transfer, null, 2))
         assert.equal(transfer.id, id, 'id of emitted transfer should match')
         done()
       })
@@ -103,7 +115,8 @@ describe('Plugin', function () {
     it('should send a 0-amount transfer', function (done) {
       const id = uuid()
 
-      this.plugin.on('outgoing_transfer', (transfer) => {
+      this.plugin.once('outgoing_transfer', (transfer) => {
+        debug(JSON.stringify(transfer, null, 2))
         assert.equal(transfer.id, id, 'id of emitted transfer should match')
         done()
       })

@@ -8,7 +8,7 @@
     "truffle-test": "./node_modules/.bin/truffle test",
     "test": "npm run serve 1>/dev/null & sleep 1 && ./node_modules/.bin/istanbul test -- _mocha; kill %1",
     "lint": "eslint .",
-    "verbose-test": "DEBUG=plugin npm test"
+    "verbose-test": "DEBUG=plugin,test npm test"
   },
   "repository": {
     "type": "git",

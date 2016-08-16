@@ -22,6 +22,9 @@ class PluginEthereum extends EventEmitter {
     if (this.web3) return
     this.web3 = new Web3(Provider(this.provider))
 
+    const filter = this.web3.eth.filter('latest')
+    filter.watch((e, r) => { this._listenBlocks(e, r) })
+
     // TODO: find out how to be notified of connect
     this.emit('connect')
     return Promise.resolve(null)
@@ -70,8 +73,7 @@ class PluginEthereum extends EventEmitter {
       from: this.web3.eth.coinbase,
       to:   outgoingTransfer.account,
       value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
-      /* data: this.web3.toHex(outgoingTransfer.data) */
-      // TODO?: will this need to include gas prices?
+      data: this.web3.toHex(outgoingTransfer.id)
     }
     this._log('sending a transfer')
     
@@ -85,7 +87,7 @@ class PluginEthereum extends EventEmitter {
           this._waitForReceipt(result)
             .then(() => {
               this._log('wait for receipt complete')
-              this.emit('outgoing_transfer', outgoingTransfer)
+//              this.emit('outgoing_transfer', outgoingTransfer)
             })
           resolve()
         }
@@ -121,6 +123,44 @@ class PluginEthereum extends EventEmitter {
       }
 
       pollReceipt()
+    })
+  }
+
+  _handleTransaction (error, transaction, web3) {
+    const transfer = {
+      id: web3.toAscii(transaction.input),
+      amount: web3.fromWei(transaction.value, 'ether').toString()
+    }
+
+    if (transaction.to === web3.eth.coinbase) {
+      this.emit('incoming_transfer',
+        Object.assign({account: transaction.from}, transfer))
+    } else if (transaction.from === web3.eth.coinbase) {
+      this.emit('outgoing_transfer',
+        Object.assign({account: transaction.to}, transfer))
+    }
+  }
+
+  _listenBlocks (error, block) {
+    if (!this.web3) return
+    if (error) throw error
+
+    // web3 must be copied in case the plugin is disconnected midway through
+    // this function and this.web3 becomes undefined.
+    const web3 = this.web3
+
+    this._log('filter got res:', block)
+    web3.eth.getBlockTransactionCount(block, (e, count) => {
+      if (e) throw e
+
+      // get all transactions on the block by index
+      for (let i = 0; i < count; i++) {
+        web3.eth.getTransactionFromBlock(
+          block,
+          i,
+          (e, r) => { this._handleTransaction(e, r, web3) }
+        )
+      }
     })
   }
   
