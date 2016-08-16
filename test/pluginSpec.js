@@ -32,7 +32,8 @@ describe('Plugin', function () {
 
     it('should return an object', () => {
       assert.isObject(new Plugin({
-        provider: ''
+        provider: '',
+        prefix: 'ethereum.'
       }))
     })
   })
@@ -40,7 +41,8 @@ describe('Plugin', function () {
   describe('connect', function () {
     beforeEach(function () {
       this.plugin = new Plugin({
-        provider: ''
+        provider: '',
+        prefix: 'ethereum.'
       })
     })
 
@@ -84,7 +86,8 @@ describe('Plugin', function () {
   describe('send optimistic', function () {
     beforeEach(function (done) {
       this.plugin = new Plugin({
-        provider: ''
+        provider: '',
+        prefix: 'ethereum.'
       })
 
       this.plugin.on('connect', done)
@@ -106,7 +109,7 @@ describe('Plugin', function () {
 
       this.plugin.send({
         'id': id,
-        'account': accounts[1].address,
+        'account': 'ethereum.' + accounts[1].address,
         'amount': '0.1',
       })
         .catch(done)
@@ -123,7 +126,7 @@ describe('Plugin', function () {
 
       this.plugin.send({
         'id': id,
-        'account': accounts[1].address,
+        'account': 'ethereum.' + accounts[1].address,
         'amount': '0.0',
       })
         .catch(done)
@@ -134,7 +137,7 @@ describe('Plugin', function () {
 
       this.plugin.send({
         'id': id,
-        'account': accounts[1].address,
+        'account': 'ethereum.' + accounts[1].address,
         'amount': '-0.1',
       })
         .catch((e) => {

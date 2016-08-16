@@ -12,8 +12,15 @@ class PluginEthereum extends EventEmitter {
   constructor (opts) {
     super()
 
+    if (typeof opts.provider !== 'string') {
+      throw new Error('opts.provider must be a string')
+    } else if (typeof opts.prefix !== 'string') {
+      throw new Error('opts.prefix must be a string')
+    }
+
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
+    this.prefix = opts.prefix // ILP prefix
 
     this.web3 = null // local web3 instance
   }
@@ -68,10 +75,13 @@ class PluginEthereum extends EventEmitter {
       return Promise.reject(new Error('amount must be greater than or equal to 0'))
     }
 
+    const splitAddress = outgoingTransfer.account.split('.')
+    const localAccount = splitAddress[splitAddress.length - 1]
+
     // TODO?: forbid repeat IDs?
     const transfer = {
       from: this.web3.eth.coinbase,
-      to:   outgoingTransfer.account,
+      to: localAccount,
       value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
       data: this.web3.toHex(outgoingTransfer.id)
     }
@@ -129,15 +139,16 @@ class PluginEthereum extends EventEmitter {
   _handleTransaction (error, transaction, web3) {
     const transfer = {
       id: web3.toAscii(transaction.input),
-      amount: web3.fromWei(transaction.value, 'ether').toString()
+      amount: web3.fromWei(transaction.value, 'ether').toString(),
+      ledger: this.prefix
     }
 
     if (transaction.to === web3.eth.coinbase) {
       this.emit('incoming_transfer',
-        Object.assign({account: transaction.from}, transfer))
+        Object.assign({account: this.prefix + transaction.from}, transfer))
     } else if (transaction.from === web3.eth.coinbase) {
       this.emit('outgoing_transfer',
-        Object.assign({account: transaction.to}, transfer))
+        Object.assign({account: this.prefix + transaction.to}, transfer))
     }
   }
 
