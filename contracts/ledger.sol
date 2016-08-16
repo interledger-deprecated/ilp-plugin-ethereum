@@ -47,13 +47,14 @@ contract Ledger {
     address receiver,
     bytes32 condition,
     bytes16 uuid,
-    uint expiry,
-    bytes data
+    bytes data,
+    uint expiry
   ) public returns (int8) {
     if (transfers[uuid].uuid != bytes16(0x0)
     || uuid == 0x0) {
       return -1;
     }
+
     transfers[uuid] = Transfer(
       msg.sender, /* sender */
       receiver,   /* receiver */
@@ -64,6 +65,8 @@ contract Ledger {
       data,       /* additional data */
       State.Propose /* transfer state */
     );
+    Update(uuid, State.Propose);
+
     return 0;
   }
 

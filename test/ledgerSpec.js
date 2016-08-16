@@ -13,8 +13,8 @@ contract('Ledger', function (accounts) {
         accounts[0], // receiver
         '', // condition
         this.uuid, // uuid
-        '0x0', // expiry
-        '' // extra data
+        '', // extra data
+        '0x0' // expiry
       ]
     })
 
@@ -60,14 +60,14 @@ contract('Ledger', function (accounts) {
         accounts[0],
         '',
         this.uuid,
-        '0x0',
         '',
+        '0x0',
       ]
     })
 
     it('should fulfill a valid transfer with a valid fulfillment', function (done) {
       // set the expiry, then condition
-      this.opts[3] = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+      this.opts[4] = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
       this.opts[1] = '0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
       this.ledger.createTransfer(...this.opts)
@@ -83,7 +83,7 @@ contract('Ledger', function (accounts) {
 
     it('should not fulfill without a valid fulfillment', function (done) {
       // set the expiry
-      this.opts[3] = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+      this.opts[4] = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
 
       this.ledger.createTransfer(...this.opts)
         .then(() => {

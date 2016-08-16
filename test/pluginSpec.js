@@ -76,21 +76,42 @@ contract('Plugin', function (accounts) {
     })
     
     it('should emit \'outgoing transfer\'', function (done) {
-      this.plugin.on('outgoing_transfer', () => {
+      const id = uuid()
+
+      this.plugin.on('outgoing_transfer', (transfer) => {
+        assert.equal(transfer.id, id, 'id of emitted transfer should match')
         done()
       })
 
       this.plugin.send({
-        'id': uuid(),
+        'id': id,
         'account': accounts[1],
         'amount': '0.1',
       })
         .catch(done)
     })
 
-    it('should not send a transfer with negative amount', function (done) {
+    it('should send a 0-amount transfer', function (done) {
+      const id = uuid()
+
+      this.plugin.on('outgoing_transfer', (transfer) => {
+        assert.equal(transfer.id, id, 'id of emitted transfer should match')
+        done()
+      })
+
       this.plugin.send({
-        'id': uuid(),
+        'id': id,
+        'account': accounts[1],
+        'amount': '0.0',
+      })
+        .catch(done)
+    })
+
+    it('should not send a transfer with negative amount', function (done) {
+      const id = uuid()
+
+      this.plugin.send({
+        'id': id,
         'account': accounts[1],
         'amount': '-0.1',
       })
@@ -99,6 +120,52 @@ contract('Plugin', function (accounts) {
             'should give the correct error for negative amount')
           done()
         })
+        .catch(done)
+    })
+  })
+
+  describe('universal transfer', function () {
+    beforeEach(function (done) {
+      this.ledger = Ledger.deployed()
+      this.plugin = new Plugin({
+        provider: testrpc,
+        contract: this.ledger.address,
+        abi: this.ledger.abi,
+      })
+
+      this.fulfillment = '0'
+      this.condition =
+        '0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+      // expires far in the future
+
+      //this.expiry = '3016-08-15T18:24:54+00:00'
+      this.expiry = '115792089237316195423570985008687907853269984665640564' +
+        '039457584007913129639935'
+
+      this.uuid = uuid()
+      this.transfer = {
+        id: this.uuid,
+        account: accounts[1],
+        amount: '0.1',
+        executionCondition: this.condition,
+        expiresAt: this.expiry
+      }
+
+      this.plugin.on('connect', done)
+      this.plugin.connect()
+    })
+
+    it('should fulfill a transfer with a condition', function (done) {
+      this.plugin.on('outgoing_execute', (transfer) => {
+        assert.deepEquals(transfer, this.transfer)
+      })
+
+      this.plugin.on('outgoing_prepare', (transfer) => {
+        assert.deepEquals(transfer, this.transfer)
+        this.plugin.fulfillCondition(this.uuid, this.fulfillment)
+      })
+
+      this.plugin.send(this.transfer)
         .catch(done)
     })
   })

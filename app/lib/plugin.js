@@ -3,12 +3,14 @@
 const Web3 = require('web3')
 const EventEmitter = require('events')
 const debug = require('debug')('plugin')
+const uuid4 = require('uuid4')
 
 class PluginEthereum extends EventEmitter {
   
   constructor (opts) {
     super()
 
+    this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
 
     // information about ethereum contract
@@ -25,6 +27,24 @@ class PluginEthereum extends EventEmitter {
     // connect to the contract
     this.contractClass = this.web3.eth.contract(this.abi)
     this.contract = this.contractClass.at(this.contractAddress)
+
+    // listen for the events
+    this.contract.allEvents((error, result) => {
+      if (!this.web3) return
+
+      try {
+
+        const uuid = result.topics[1]
+        const state = result.topics[0]
+
+
+      this.contract.transfers(uuid, (err, result) => {
+          const res = result.map((e) => e.toString())
+          console.log('Got Event Result:', res)
+      })
+
+      } catch (e) {}
+    })
 
     // TODO: find out how to be notified of connect
     this.emit('connect')
@@ -71,6 +91,7 @@ class PluginEthereum extends EventEmitter {
         this.web3.toHex(fulfillment),                    // data
         {
           from: this.web3.eth.coinbase,
+          gas: 300000, // TODO?: specify this?
         },
         handle
       )
@@ -116,7 +137,7 @@ class PluginEthereum extends EventEmitter {
           this._waitForReceipt(result)
             .then(() => {
               this._log('wait for receipt complete')
-              this.emit('outgoing_transfer', transfer)
+              this.emit('outgoing_transfer', outgoingTransfer)
             })
           resolve()
         }
@@ -142,41 +163,19 @@ class PluginEthereum extends EventEmitter {
               this._log('universal transaction mined')
               resolve()
             })
-
-//         try {
-//            console.log('running')
-//            this.contract.allEvents().watch(/*{ uuid: outgoingTransfer.id },*/ (err, result) => {
-//              this._log('got error:  ', err, '\n    result: ', result)
-//              // err ? reject(err):resolve(result)
-//            })
-//          } catch (e) { console.error(e) }
         }
       }
 
-      this._log(JSON.stringify([
-        outgoingTransfer.account,                                  // receiver
-        //this._conditionToHex(outgoingTransfer.executionCondition), // condition
-        this.web3.toHex(outgoingTransfer.executionCondition),
-        outgoingTransfer.id,                                       // uuid
-        //this._dateToTimestamp(outgoingTransfer.expiry),            // expiry
-        this.web3.toHex(outgoingTransfer.expiry),
-        this.web3.toHex(outgoingTransfer.data),                    // data
-        {
-          from: this.web3.eth.coinbase,
-          gas: 300000, // TODO?: specify this?
-          value: this.web3.toWei(outgoingTransfer.amount, 'ether')
-        }
-      ], null, 2))
-
       const result = this.contract.createTransfer.sendTransaction(
         outgoingTransfer.account,                                  // receiver
-        this.web3.toHex(outgoingTransfer.executionCondition),
+        outgoingTransfer.executionCondition,
         outgoingTransfer.id,                                       // uuid
-        this.web3.toHex(outgoingTransfer.expiry),
         this.web3.toHex(outgoingTransfer.data),                    // data
+        this.web3.toHex(outgoingTransfer.expiresAt),
         {
           from: this.web3.eth.coinbase,
           value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
+          gas: 300000, // TODO?: specify this?
         },
         handle
       )
@@ -220,7 +219,7 @@ class PluginEthereum extends EventEmitter {
   }
 
   _log () {
-    debug(...arguments)
+    debug(this.debugId, ...arguments)
   }
 }
 
