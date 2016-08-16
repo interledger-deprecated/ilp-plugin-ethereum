@@ -13,38 +13,12 @@ class PluginEthereum extends EventEmitter {
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
 
-    // information about ethereum contract
-    this.contractAddress = opts.contract
-    this.abi = opts.abi // contract abi json
-
     this.web3 = null // local web3 instance
   }
 
   connect () {
     if (this.web3) return
     this.web3 = new Web3(new Web3.providers.HttpProvider(this.provider))
-
-    // connect to the contract
-    this.contractClass = this.web3.eth.contract(this.abi)
-    this.contract = this.contractClass.at(this.contractAddress)
-
-    // listen for the events
-    this.contract.allEvents((error, result) => {
-      if (!this.web3) return
-
-      try {
-
-        const uuid = result.topics[1]
-        const state = result.topics[0]
-
-
-      this.contract.transfers(uuid, (err, result) => {
-          const res = result.map((e) => e.toString())
-          console.log('Got Event Result:', res)
-      })
-
-      } catch (e) {}
-    })
 
     // TODO: find out how to be notified of connect
     this.emit('connect')
@@ -68,34 +42,6 @@ class PluginEthereum extends EventEmitter {
     return outgoingTransfer.executionCondition
       ? this._sendUniversal(outgoingTransfer)
       : this._sendOptimistic(outgoingTransfer)
-  }
-
-  fulfillCondition (transferId, fulfillment) {
-    return new Promise((resolve, reject) => {
-      const handle = (error, result) => {
-        this._log("got submitted: ", error, result)
-        if (error) {
-          reject(error)  
-        } else {
-          this._log('Fulfill TX Hash:', result)
-          this._waitForReceipt(result)
-            .then(() => {
-              this._log('got receipt for TX')
-              resolve()
-            })
-        }
-      }
-
-      const result = this.contract.fulfillTransfer.sendTransaction(
-        transferId,                                      // uuid
-        this.web3.toHex(fulfillment),                    // data
-        {
-          from: this.web3.eth.coinbase,
-          gas: 300000, // TODO?: specify this?
-        },
-        handle
-      )
-    })
   }
 
   getBalance () {
@@ -142,43 +88,6 @@ class PluginEthereum extends EventEmitter {
           resolve()
         }
       })
-    })
-  }
-
-  _sendUniversal (outgoingTransfer) {
-    if (!this.web3) {
-      return Promise.reject(new Error('must be connected'))
-    }
-
-    return new Promise((resolve, reject) => {
-      const handle = (error, result) => {
-        this._log("got submitted: ", error, result)
-        if (error) {
-          reject(error)
-        } else {
-          this._log('Universal TX Hash:', result)
-
-          this._waitForReceipt(result)
-            .then(() => {
-              this._log('universal transaction mined')
-              resolve()
-            })
-        }
-      }
-
-      const result = this.contract.createTransfer.sendTransaction(
-        outgoingTransfer.account,                                  // receiver
-        outgoingTransfer.executionCondition,
-        outgoingTransfer.id,                                       // uuid
-        this.web3.toHex(outgoingTransfer.data),                    // data
-        this.web3.toHex(outgoingTransfer.expiresAt),
-        {
-          from: this.web3.eth.coinbase,
-          value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
-          gas: 300000, // TODO?: specify this?
-        },
-        handle
-      )
     })
   }
 
