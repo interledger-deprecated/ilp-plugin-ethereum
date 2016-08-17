@@ -2,7 +2,7 @@
 
 const Web3 = require('web3')
 const EventEmitter = require('events')
-const debug = require('debug')('plugin')
+const debug = require('debug')('ethereum')
 const uuid4 = require('uuid4')
 
 const Provider = require('../model/provider')
@@ -21,6 +21,7 @@ class PluginEthereum extends EventEmitter {
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
     this.prefix = opts.prefix // ILP prefix
+    this.ownAccount = opts.account
 
     this.web3 = null // local web3 instance
   }
@@ -63,7 +64,7 @@ class PluginEthereum extends EventEmitter {
 
     this._log('getting the balance')
     return new Promise((resolve) => {
-      const balance = this.web3.eth.getBalance(this.web3.eth.coinbase)
+      const balance = this.web3.eth.getBalance(this.ownAccount)
       resolve(balance.toString(10))
     })
   }
@@ -80,12 +81,12 @@ class PluginEthereum extends EventEmitter {
 
     // TODO?: forbid repeat IDs?
     const transfer = {
-      from: this.web3.eth.coinbase,
+      from: this.ownAccount,
       to: localAccount,
       value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
       data: this.web3.toHex(outgoingTransfer.id)
     }
-    this._log('sending a transfer')
+    this._log('sending a transfer:', JSON.stringify(transfer, null, 2))
     
     return new Promise((resolve, reject) => {
       this.web3.eth.sendTransaction(transfer, (error, result) => {
@@ -142,11 +143,16 @@ class PluginEthereum extends EventEmitter {
       amount: web3.fromWei(transaction.value, 'ether').toString(),
       ledger: this.prefix
     }
+    this._log('got transaction: ', transaction)
+    this._log('own account is:  ', this.ownAccount)
+    this._log('created transfer:', transfer)
 
-    if (transaction.to === web3.eth.coinbase) {
+    if (transaction.to === this.ownAccount) {
+      this._log('transfer incoming.')
       this.emit('incoming_transfer',
         Object.assign({account: this.prefix + transaction.from}, transfer))
-    } else if (transaction.from === web3.eth.coinbase) {
+    } else if (transaction.from === this.ownAccount) {
+      this._log('transfer outgoing.')
       this.emit('outgoing_transfer',
         Object.assign({account: this.prefix + transaction.to}, transfer))
     }
@@ -163,6 +169,7 @@ class PluginEthereum extends EventEmitter {
     this._log('filter got res:', block)
     web3.eth.getBlockTransactionCount(block, (e, count) => {
       if (e) throw e
+      this._log('has', count, 'transactions.')
 
       // get all transactions on the block by index
       for (let i = 0; i < count; i++) {
