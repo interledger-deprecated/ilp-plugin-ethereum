@@ -22,6 +22,8 @@ class PluginEthereum extends EventEmitter {
     this.provider = opts.provider // http address for web3 provider
     this.prefix = opts.prefix // ILP prefix
     this.ownAccount = opts.account
+    this.seenTransactions = {}
+    this.seenBlocks = {}
 
     this.web3 = null // local web3 instance
   }
@@ -138,50 +140,66 @@ class PluginEthereum extends EventEmitter {
   }
 
   _handleTransaction (error, transaction, web3) {
+    if (error) {
+      this._log(error)
+      return
+    }
+
+    if (this.seenTransactions[transaction.hash]) {
+      return
+    }
+    this.seenTransactions[transaction.hash] = true
+
     const transfer = {
       id: web3.toAscii(transaction.input),
       amount: web3.fromWei(transaction.value, 'ether').toString(),
       ledger: this.prefix
     }
-    this._log('got transaction: ', transaction)
-    this._log('own account is:  ', this.ownAccount)
-    this._log('created transfer:', transfer)
 
     if (transaction.to === this.ownAccount) {
-      this._log('transfer incoming.')
+      this._log('transfer incoming. id:', transfer.id)
       this.emit('incoming_transfer',
         Object.assign({account: this.prefix + transaction.from}, transfer))
     } else if (transaction.from === this.ownAccount) {
-      this._log('transfer outgoing.')
+      this._log('transfer outgoing. id:', transfer.id)
       this.emit('outgoing_transfer',
         Object.assign({account: this.prefix + transaction.to}, transfer))
     }
   }
 
-  _listenBlocks (error, block) {
+  _listenBlocks (error, result) {
     if (!this.web3) return
-    if (error) throw error
+    if (error) {
+      this._log(error)
+      return
+    }
 
     // web3 must be copied in case the plugin is disconnected midway through
     // this function and this.web3 becomes undefined.
     const web3 = this.web3
+    const block = web3.eth.getBlock(result)
 
-    this._log('filter got res:', block)
-    web3.eth.getBlockTransactionCount(block, (e, count) => {
+    if (this.seenBlocks[block.number]) {
+      return
+    }
+    this.seenBlocks[block.number] = true
+
+    this._log('filter got block #' + block.number)
+    web3.eth.getBlockTransactionCount(block.number, (e, count) => {
       if (e) throw e
       this._log('has', count, 'transactions.')
 
       // get all transactions on the block by index
       for (let i = 0; i < count; i++) {
         web3.eth.getTransactionFromBlock(
-          block,
+          block.number,
           i,
           (e, r) => { this._handleTransaction(e, r, web3) }
         )
       }
     })
   }
-  
+
   _handleUpdate (event) {
     // TODO: what is this event made of?
     this._log(JSON.stringify(event))
