@@ -1,4 +1,4 @@
-# JS-ILP-Plugin-Ethereum
+# ILP Plugin-Ethereum
 
 > An optimistic ILP LedgerPlugin for sending Ether
 

@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/interledger/js-ilp-plugin-ethereum.git"
+    "url": "git+https://github.com/interledgerjs/ilp-plugin-ethereum.git"
   },
   "keywords": [
     "ilp",
@@ -24,9 +24,9 @@
   "author": "Interledger Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/interledger/js-ilp-plugin-ethereum/issues"
+    "url": "https://github.com/interledgerjs/ilp-plugin-ethereum/issues"
   },
-  "homepage": "https://github.com/interledger/js-ilp-plugin-ethereum#readme",
+  "homepage": "https://github.com/interledgerjs/ilp-plugin-ethereum#readme",
   "devDependencies": {
     "chai": "^3.5.0",
     "eslint": "^2.11.1",
