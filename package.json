@@ -22,7 +22,7 @@
     "ethereum"
   ],
   "author": "Interledger Team",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/interledgerjs/ilp-plugin-ethereum/issues"
   },
