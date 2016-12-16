@@ -1,6 +1,6 @@
 {
   "name": "ilp-plugin-ethereum",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "ILP Plugin for Ethereum",
   "main": "index.js",
   "scripts": {
