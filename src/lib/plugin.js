@@ -2,7 +2,7 @@
 
 const Web3 = require('web3')
 const EventEmitter = require('events')
-const debug = require('debug')('ethereum')
+const debug = require('debug')('ilp-plugin-ethereum')
 const uuid4 = require('uuid4')
 
 const Provider = require('../model/provider')
@@ -14,13 +14,15 @@ class PluginEthereum extends EventEmitter {
 
     if (typeof opts.provider !== 'string') {
       throw new Error('opts.provider must be a string')
-    } else if (typeof opts.prefix !== 'string') {
+    } else if (typeof opts.account !== 'string') {
+      throw new Error('opts.provider must be a string')
+    } else if (opts.prefix && typeof opts.prefix !== 'string') {
       throw new Error('opts.prefix must be a string')
     }
 
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
-    this.prefix = opts.prefix // ILP prefix
+    this.prefix = opts.prefix || 'ethereum.' // ILP prefix
     this.ownAccount = opts.account
     this.seenTransactions = {}
     this.seenBlocks = {}
@@ -49,11 +51,26 @@ class PluginEthereum extends EventEmitter {
     return Promise.resolve(null)
   }
 
+  getPrefix () {
+    return Promise.resolve(this.prefix)
+  }
+
+  getAccount () {
+    return Promise.resolve(this.prefix + this.ownAccount)
+  }
+
+  getInfo () {
+    return {
+      precision: 10,
+      scale: 10
+    }
+  }
+
   isConnected () {
     return !!this.web3
   }
 
-  send (outgoingTransfer) {
+  sendTransfer (outgoingTransfer) {
     return outgoingTransfer.executionCondition
       ? this._sendUniversal(outgoingTransfer)
       : this._sendOptimistic(outgoingTransfer)
@@ -86,7 +103,10 @@ class PluginEthereum extends EventEmitter {
       from: this.ownAccount,
       to: localAccount,
       value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
-      data: this.web3.toHex(outgoingTransfer.id)
+      data: this.web3.toHex(JSON.stringify({
+        id: outgoingTransfer.id,
+        data: outgoingTransfer.data
+      }))
     }
     this._log('sending a transfer:', JSON.stringify(transfer, null, 2))
     
@@ -150,10 +170,19 @@ class PluginEthereum extends EventEmitter {
     }
     this.seenTransactions[transaction.hash] = true
 
+    let metadata
+    try {
+      metadata = JSON.parse(web3.toAscii(transaction.input))
+    } catch (e) {
+      this._log('error parsing transaction input. make sure it\'s json converted to hex')
+      return
+    }
+
     const transfer = {
-      id: web3.toAscii(transaction.input),
+      id: metadata.id,
       amount: web3.fromWei(transaction.value, 'ether').toString(),
-      ledger: this.prefix
+      ledger: this.prefix,
+      data: metadata.data
     }
 
     if (transaction.to === this.ownAccount) {

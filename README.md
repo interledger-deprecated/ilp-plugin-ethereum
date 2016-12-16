@@ -4,18 +4,35 @@
 
 # Function
 
-An optimistic ILP LedgerPlugin is designed to run under a trustline. On many networks like Ethereum and Bitcoin,
-the time for a transaction to go through can be long. To submit and fulfill a transaction can take minutes.
+An optimistic ledger plugin can, as the name suggests, only send
+optimistic-mode Interledger transfers. This means none of its payments will be
+conditional.
 
-In the new model, a trustline can be run between two connectors, which has virtually no delay. The two connectors
-must have trust with one another, but aside from that all security stays the same. When the balance between the
-two connectors has reached the maximum that they will allow, a settlement is triggered.
+Because optimistic mode could allow untrusted connectors to make off with your
+funds, it's unsuitable for any path that goes through parties you don't know.
+Optimistic mode is perfectly fine if you happen to trust the connectors, however.
 
-This automatic settlement is where the optimistic Ledger Plugin comes in. The one connector's trustline calls the send function
-of the plugin, which sends an optimistic payment to the other connector. The trustline balance is then updated. No matter how
-slow the transaction to settle is, it won't interfere with the payments being routed through.
+Fortunately, this is exactly the situation for settlement. You are trying to send
+some money to a connector that you trust, and they credit an account that you own.
+Because the trusted connector is the only hop along the way, it's safe.
+
+ILP Plugin Ethereum allows you to perform this optimistic transfer over the ethereum
+network, **so long as the connector also has an instance of this plugin listening for
+incoming transfers.**
 
 # Usage
 
-To test the plugin, first download this repository and run `npm install`. Then
-run `npm test`. The tests use truffle and a local testrpc provider.
+To test the plugin, first download this repository and run `npm install`. To instantiate a plugin, the following fields are needed:
+
+```js
+{
+  "provider": "http://localhost:8000", // URL of your web3 provider
+  "account":  "0x20f5beb5c3858433633f53f8e08c5da19d17516e" // account for this plugin (must be unlocked)
+}
+```
+
+The ILP address of the plugin above will be:
+
+```js
+"ethereum.0x20f5beb5c3858433633f53f8e08c5da19d17516e"
+```
