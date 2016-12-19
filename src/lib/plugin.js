@@ -8,7 +8,7 @@ const uuid4 = require('uuid4')
 const Provider = require('../model/provider')
 
 class PluginEthereum extends EventEmitter {
-  
+
   constructor (opts) {
     super()
 
@@ -46,7 +46,7 @@ class PluginEthereum extends EventEmitter {
     if (!this.web3) return
     // TODO: find out how to actually disconnect
     this.web3 = null
-    
+
     this.emit('disconnect')
     return Promise.resolve(null)
   }
@@ -109,7 +109,7 @@ class PluginEthereum extends EventEmitter {
       }))
     }
     this._log('sending a transfer:', JSON.stringify(transfer, null, 2))
-    
+
     return new Promise((resolve, reject) => {
       this.web3.eth.sendTransaction(transfer, (error, result) => {
         this._log('got err:', error, '\n    and result:', result)
@@ -139,7 +139,7 @@ class PluginEthereum extends EventEmitter {
     })
   }
 
-  _waitForReceipt(hash) {
+  _waitForReceipt (hash) {
     return new Promise((resolve) => {
       const that = this
       const pollReceipt = () => {
@@ -151,7 +151,7 @@ class PluginEthereum extends EventEmitter {
             setTimeout(pollReceipt, 500)
           }
         } catch (error) {
-          this._log('ERROR:', error) 
+          this._log('ERROR:', error)
         }
       }
 
