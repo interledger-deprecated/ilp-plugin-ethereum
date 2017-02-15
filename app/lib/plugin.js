@@ -160,20 +160,20 @@ class PluginEthereum extends EventEmitter {
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     debug('eq?', this.getAccount() === transfer.from)
 
-    if (transfer.from === this.getAccount()) direction = 'outgoing_'
-    if (transfer.to === this.getAccount()) direction = 'incoming_'
+    if (transfer.from === this.getAccount()) direction = 'outgoing'
+    if (transfer.to === this.getAccount()) direction = 'incoming'
     if (!direction) return
 
     transfer.direction = direction
 
-    debug('emitting ' + direction + transfer.state)
+    debug('emitting ' + direction + '_' + transfer.state)
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     if (transfer.state === 'fulfill') {
       debug('emitting the fulfill')
-      this.emit(direction + transfer.state, transfer, fulfillment)
+      this.emit(direction + '_' + transfer.state, transfer, fulfillment)
       return
     }
-    this.emit(direction + transfer.state, transfer)
+    this.emit(direction + '_' + transfer.state, transfer)
   }
 
   disconnect () {
