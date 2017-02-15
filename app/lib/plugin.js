@@ -5,6 +5,7 @@ const Web3 = require('web3')
 const EventEmitter = require('events')
 const debug = require('debug')('ilp-plugin-ethereum')
 const uuid4 = require('uuid4')
+const UUID = require('node-uuid')
 
 const stateToName = (state) => {
   return ([ 'prepare', 'fulfill', 'cancel', 'reject' ])[state]
@@ -90,7 +91,7 @@ class PluginEthereum extends EventEmitter {
   
             // parse the event and emit that
             this._processUpdate({
-              id: uuid,
+              id: UUID.unparse(Buffer.from(uuid.substring(2), 'hex')),
               from: this._toAccount(res[0]),
               to: this._toAccount(res[1]),
               amount: this.web3.fromWei(res[2]),
@@ -132,7 +133,7 @@ class PluginEthereum extends EventEmitter {
   
             // parse the event and emit that
             this._processUpdate({
-              id: uuid,
+              id: UUID.unparse(Buffer.from(uuid.substring(2), 'hex')),
               from: this._toAccount(res[0]),
               to: this._toAccount(res[1]),
               amount: this.web3.fromWei(res[2]),
@@ -191,8 +192,9 @@ class PluginEthereum extends EventEmitter {
   }
 
   fulfillCondition (transferId, fulfillment) {
-    //const uuid = '0x' + transferId.replace(/\-/g, '')
-    const uuid = transferId
+    console.log('transferId:', transferId)
+
+    const uuid = '0x' + transferId.replace(/\-/g, '')
     const fulfillmentBytes = '0x' + Buffer.from(fulfillment.match(/cf:0:(.+)/)[1], 'base64').toString('hex')
 
     console.log('uuid:', uuid)
