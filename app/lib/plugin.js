@@ -99,7 +99,7 @@ class PluginEthereum extends EventEmitter {
               noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
               expiresAt: (new Date(+res[4] * 1000)).toISOString(),
               state: 'fulfill',
-            }, 'cf:0:' + base64url(Buffer.from(fufillment.slice(2), 'hex')))
+            }, 'cf:0:' + base64url(Buffer.from(fulfillment.slice(2), 'hex')))
           })
         })
 
@@ -153,7 +153,7 @@ class PluginEthereum extends EventEmitter {
     return Promise.resolve(null)
   }
 
-  _processUpdate (transfer) {
+  _processUpdate (transfer, fulfillment) {
     let direction
 
     debug('I AM ' + this.getAccount())
@@ -166,6 +166,10 @@ class PluginEthereum extends EventEmitter {
 
     debug('emitting ' + direction + transfer.state)
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
+    if (transfer.state === 'fulfill') {
+      this.emit(direction + transfer.state, transfer, fulfillment)
+      return
+    }
     this.emit(direction + transfer.state, transfer)
   }
 
