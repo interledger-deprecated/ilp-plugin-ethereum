@@ -1,5 +1,6 @@
 'use strict'
 
+const base64url = require('base64url')
 const Web3 = require('web3')
 const EventEmitter = require('events')
 const debug = require('debug')('ilp-plugin-ethereum')
@@ -96,7 +97,7 @@ class PluginEthereum extends EventEmitter {
               to: this._toAccount(res[1]),
               amount: this.web3.fromWei(res[2]),
               data: data,
-              executionCondition: res[3].slice(2),
+              executionCondition: 'cc:0:3:' + base64url(Buffer.from(res[3].slice(2), 'hex')) + ':32',
               noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
               expiresAt: (new Date(+res[4] * 1000)).toISOString(),
               state: stateToName(res[5]),
@@ -192,6 +193,7 @@ class PluginEthereum extends EventEmitter {
       return Promise.reject(new Error('must be connected'))
     }
 
+    const account = outgoingTransfer.account.split('.')[3]
     const uuid = '0x' + outgoingTransfer.id.replace(/\-/g, '')
 
     return new Promise((resolve, reject) => {
@@ -211,11 +213,13 @@ class PluginEthereum extends EventEmitter {
         }
       }
 
+		const condition = outgoingTransfer.executionCondition.match(/cc:0:3:(.+?):32/)[1]
+	console.log('execution condition:', condition)
       console.log('\x1b[33mDATA:\x1b[39m', this.web3.toHex(JSON.stringify(outgoingTransfer.data)))
       console.log('\x1b[33mexpires at:\x1b[39m', this.web3.toHex(((new Date(outgoingTransfer.expiresAt)).getTime() / 1000) | 0))
       const result = this.contract.createTransfer.sendTransaction(
-        outgoingTransfer.account,                                  // receiver
-        '0x' + outgoingTransfer.executionCondition,
+        account,                                  // receiver
+        '0x' + Buffer.from(condition, 'base64').toString('hex'),
         uuid,                                       // uuid
         this.web3.toHex(((new Date(outgoingTransfer.expiresAt)).getTime() / 1000) | 0), // expiry
         this.web3.toHex(JSON.stringify(outgoingTransfer.data)),                    // data
