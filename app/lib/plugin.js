@@ -187,8 +187,11 @@ class PluginEthereum extends EventEmitter {
   }
 
   fulfillCondition (transferId, fulfillment) {
-    const uuid = '0x' + transferId.replace(/\-/g, '')
+    //const uuid = '0x' + transferId.replace(/\-/g, '')
+    const uuid = transferId
     const fulfillmentBytes = '0x' + Buffer.from(fulfillment.match(/cf:0:(.+)/)[1], 'base64').toString('hex')
+
+    console.log('uuid:', uuid)
     console.log('fulfillmentBytes:', fulfillmentBytes)
     
     return new Promise((resolve, reject) => {
