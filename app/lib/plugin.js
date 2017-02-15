@@ -16,7 +16,6 @@ class PluginEthereum extends EventEmitter {
   constructor (opts) {
     super()
 
-      foo: 'bar'
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
     this.address = opts.address
@@ -165,9 +164,12 @@ class PluginEthereum extends EventEmitter {
     if (transfer.to === this.getAccount()) direction = 'incoming_'
     if (!direction) return
 
+    transfer.direction = direction
+
     debug('emitting ' + direction + transfer.state)
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     if (transfer.state === 'fulfill') {
+      debug('emitting the fulfill')
       this.emit(direction + transfer.state, transfer, fulfillment)
       return
     }
