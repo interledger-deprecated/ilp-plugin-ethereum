@@ -148,6 +148,7 @@ class PluginEthereum extends EventEmitter {
 
   fulfillCondition (transferId, fulfillment) {
     const uuid = '0x' + transferId.replace(/\-/g, '')
+    const fulfillmentBytes = '0x' + Buffer.from(fulfillment.match(/cf:0:(.+)/)[1], 'base64').toString('hex')
     
     return new Promise((resolve, reject) => {
       const handle = (error, result) => {
@@ -166,7 +167,7 @@ class PluginEthereum extends EventEmitter {
 
       const result = this.contract.fulfillTransfer.sendTransaction(
         uuid,                                      // uuid
-        this.web3.toHex(fulfillment),                    // data
+        fulfillmentBytes,                    // data
         {
           from: this.address,
           gas: 3000000, // TODO?: specify this?
