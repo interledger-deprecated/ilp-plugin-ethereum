@@ -4,9 +4,8 @@
   "description": "ILP Plugin for Ethereum",
   "main": "index.js",
   "scripts": {
-    "test": "echo 'No tests specified.' && exit 1",
-    "lint": "eslint .",
-    "verbose-test": "DEBUG=plugin,test npm test"
+    "test": "echo 'no tests.'",
+    "lint": "eslint ."
   },
   "repository": {
     "type": "git",
