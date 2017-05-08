@@ -32,7 +32,7 @@ contract Ledger {
   event DebugInt (string msg, uint num);
 
   /* These represent all the money that is currently on hold or has been on
-   * hold. They are retained so that transactions are idempotent.
+   * hold. They are retained so that transactions can't be played back
    */
   mapping (bytes16 => Transfer) public transfers;
   mapping (bytes16 => bytes) public memos;
@@ -60,7 +60,7 @@ contract Ledger {
     Debug('starting createTransfer');
     if (transfers[uuid].sender != address(0x0)
     || uuid == 0x0) {
-      Debug('invalid or existing transfer');
+      Debug('id of 0 or existing transfer');
       return -1;
     }
     Debug('creating transfer');
@@ -75,10 +75,7 @@ contract Ledger {
     memos[uuid] = data;
     Debug('created transfer');
     DebugInt('expiry is', expiry);
-
-    // emits the incoming/outgoing fulfill events
-    Update(uuid, State.Propose);
-
+    Update(uuid, State.Propose); 
     return 0;
   }
 
@@ -97,37 +94,35 @@ contract Ledger {
    *  -3. transfer should roll back, but could not move funds
    *  -4. transfer should execute, but could not move funds
    */
-
   function fulfillTransfer (
     bytes16 uuid,
     bytes fulfillment
   ) public payable returns (int8) {
-    Debug('starting fulfill');
-    var transfer = transfers[uuid];
+      Debug('starting fulfill');
+      var transfer = transfers[uuid];
+      Debug('got transfer');
     
-    Debug('does transfer exist?');
-    if (transfer.sender == address(0x0)) {
-      Debug('transfer does not exist');
+    Debug('is ID 0?');
+    if (transfer.sender == 0x0) {
+        Debug('id was 0');
       return -1;
     }
     
     Debug('was state propose?');
     if (transfer.state != State.Propose) {
-      Debug('transfer already resolved');
+      Debug('state wasnt propose');
       return -2;
     }
-
-    DebugInt('time is', block.timestamp);
+    DebugInt('timestamp', block.timestamp);
     DebugInt('expiry is', transfer.expiry);
-
-    Debug('is transfer expired?');
+    Debug('is expired?');
     if (block.timestamp > transfer.expiry) {
-      Debug('transfer expired');
+        Debug('its expired');
       if (transfer.sender.send(transfer.amount)) {
         transfer.state = State.Cancel;
         transfers[uuid] = transfer;
 
-        // emits incoming/outgoing cancel
+        /* inform the two parties about this */
         Update(uuid, transfer.state);
 
         return 1;
@@ -136,23 +131,21 @@ contract Ledger {
       }
     }
     
-    Debug('is transfer fulfilled?');
+    Debug('is fulfilled?');
     if (sha256(fulfillment) == transfer.condition) {
-      Debug('transfer fulfilled');
       if (transfer.receiver.send(transfer.amount)) {
         transfer.state = State.Fulfill;
         transfers[uuid] = transfer;
 
-        // emits incoming/outgoing fulfill
+        /* inform the two parties about this */
         Fulfill(uuid, fulfillment);
 
         return 0;
       } else {
-        Debug('fatal: unable to send funds');
         return -4;
       }
     }
-
-    Debug('neither expired nor fulfilled');
+    
+    Debug('none of the above');
   }
 }
