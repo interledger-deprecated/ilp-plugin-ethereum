@@ -4,9 +4,8 @@
   "description": "ILP Plugin for Ethereum",
   "main": "index.js",
   "scripts": {
-    "test": "echo 'No tests specified.' && exit 1",
-    "lint": "eslint .",
-    "verbose-test": "DEBUG=plugin,test npm test"
+    "test": "echo 'no tests.'",
+    "lint": "eslint src"
   },
   "repository": {
     "type": "git",
@@ -36,6 +35,7 @@
     "mock-require": "^1.3.0"
   },
   "dependencies": {
+    "base64url": "^2.0.0",
     "debug": "^2.2.0",
     "uuid4": "^1.0.0",
     "web3": "^0.17.0-alpha"

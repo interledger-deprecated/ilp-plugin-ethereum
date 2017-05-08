@@ -1,45 +1,184 @@
 'use strict'
 
+const base64url = require('base64url')
 const Web3 = require('web3')
 const EventEmitter = require('events')
 const debug = require('debug')('ilp-plugin-ethereum')
-const uuid4 = require('uuid4')
+const uuid4 = require('node-uuid')
 
-const Provider = require('../model/provider')
+const stateToName = (state) => {
+  return ([ 'prepare', 'fulfill', 'cancel', 'reject' ])[state]
+}
 
 class PluginEthereum extends EventEmitter {
 
   constructor (opts) {
     super()
 
-    if (typeof opts.provider !== 'string') {
-      throw new Error('opts.provider must be a string')
-    } else if (typeof opts.account !== 'string') {
-      throw new Error('opts.provider must be a string')
-    } else if (opts.prefix && typeof opts.prefix !== 'string') {
-      throw new Error('opts.prefix must be a string')
-    }
-
     this.debugId = uuid4()
     this.provider = opts.provider // http address for web3 provider
-    this.prefix = opts.prefix || 'ethereum.' // ILP prefix
-    this.ownAccount = opts.account
-    this.seenTransactions = {}
-    this.seenBlocks = {}
+    this.address = opts.address
+
+    // this can't be done on ethereum
+    this.notesToSelf = {}
+
+    // information about ethereum contract
+    this.contractAddress = opts.contract
+    this.abi = opts.abi // contract abi json
 
     this.web3 = null // local web3 instance
   }
 
+  _toAccount (address) {
+    return 'g.crypto.ethereum.' + address.toLowerCase()
+  }
+
+  getAccount () {
+    return this._toAccount(this.address)
+  }
+
+  getInfo () {
+    return {
+      currencyCode: 'ETH',
+      currencySymbol: 'ETH',
+      precision: 25,
+      scale: 18
+    }
+  }
+
   connect () {
     if (this.web3) return
-    this.web3 = new Web3(Provider(this.provider))
+    this.web3 = new Web3(new Web3.providers.HttpProvider(this.provider))
 
-    const filter = this.web3.eth.filter('latest')
-    filter.watch((e, r) => { this._listenBlocks(e, r) })
+    // connect to the contract
+    this.contractClass = this.web3.eth.contract(this.abi)
+    this.contract = this.contractClass.at(this.contractAddress)
+//    console.log('CONTRACT:', this.contract)
+
+    this.contract.Debug((error, result) => {
+      if (error) console.error(error)
+      if (!this.web3) return
+      console.log('debug message:', result.args.msg)
+    })
+
+    this.contract.DebugInt((error, result) => {
+      if (error) console.error(error)
+      if (!this.web3) return
+      console.log('debug message (int):', result.args.msg, result.args.num)
+    })
+
+    this.contract.Fulfill((error, result) => {
+      if (error) console.error(error)
+
+      try {
+//        console.log('EVENT:', result.args)
+        const uuid = result.args.uuid
+        const fulfillment = result.args.fulfillment
+ //       console.log('uuid, state:', uuid, state)
+
+        this.contract.transfers(uuid, (err, result) => {
+          if (err) console.error(err)
+          const res = result.map((e) => e.toString())
+  //        console.log('\x1b[31mGot Event Result:', res)
+          this.contract.memos(uuid, (err, result) => {
+            if (err) console.error(err)
+
+            let data
+            try {
+              data = JSON.parse(Buffer.from(result.slice(2), 'hex').toString('utf8'))
+            } catch (e) {
+              data = {}
+            }
+            console.log('\x1b[32mGot Memo:',
+              JSON.parse(Buffer.from(result.slice(2), 'hex').toString('utf8') || '{}'))
+
+            // parse the event and emit that
+            this._processUpdate({
+              id: uuid4.unparse(Buffer.from(uuid.substring(2), 'hex')),
+              from: this._toAccount(res[0]),
+              to: this._toAccount(res[1]),
+              amount: this.web3.fromWei(res[2]),
+              data: data,
+              executionCondition: 'cc:0:3:' + base64url(Buffer.from(res[3].slice(2), 'hex')) + ':32',
+              noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
+              expiresAt: (new Date(+res[4] * 1000)).toISOString(),
+              state: 'fulfill'
+            }, 'cf:0:' + base64url(Buffer.from(fulfillment.slice(2), 'hex')))
+          })
+        })
+      } catch (e) {}
+    })
+
+    // listen for the events
+    this.contract.Update((error, result) => {
+      if (error) console.error(error)
+      if (!this.web3) return
+      // console.log('EVENT:', result)
+
+      try {
+//        console.log('EVENT:', result.args)
+        const uuid = result.args.uuid
+ //       console.log('uuid, state:', uuid, state)
+
+        this.contract.transfers(uuid, (err, result) => {
+          if (err) console.error(err)
+          const res = result.map((e) => e.toString())
+  //        console.log('\x1b[31mGot Event Result:', res)
+          this.contract.memos(uuid, (err, result) => {
+            if (err) console.error(err)
+
+            let data
+            try {
+              data = JSON.parse(Buffer.from(result.slice(2), 'hex').toString('utf8'))
+            } catch (e) {
+              data = {}
+            }
+            console.log('\x1b[32mGot Memo:',
+              JSON.parse(Buffer.from(result.slice(2), 'hex').toString('utf8') || '{}'))
+
+            // parse the event and emit that
+            this._processUpdate({
+              id: uuid4.unparse(Buffer.from(uuid.substring(2), 'hex')),
+              from: this._toAccount(res[0]),
+              to: this._toAccount(res[1]),
+              amount: this.web3.fromWei(res[2]),
+              data: data,
+              executionCondition: 'cc:0:3:' + base64url(Buffer.from(res[3].slice(2), 'hex')) + ':32',
+              noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
+              expiresAt: (new Date(+res[4] * 1000)).toISOString(),
+              state: stateToName(res[5])
+            })
+          })
+        })
+      } catch (e) {}
+    })
 
     // TODO: find out how to be notified of connect
     this.emit('connect')
     return Promise.resolve(null)
+  }
+
+  _processUpdate (transfer, fulfillment) {
+    let direction
+
+    debug('I AM ' + this.getAccount())
+    debug('transfer is: ' + JSON.stringify(transfer, null, 2))
+    debug('eq?', this.getAccount() === transfer.from)
+
+    if (transfer.from === this.getAccount()) direction = 'outgoing'
+    if (transfer.to === this.getAccount()) direction = 'incoming'
+    if (!direction) return
+
+    transfer.direction = direction
+
+    debug('emitting ' + direction + '_' + transfer.state)
+    debug('transfer is: ' + JSON.stringify(transfer, null, 2))
+    if (transfer.state === 'fulfill') {
+      debug('emitting the fulfill')
+      this.emit(direction + '_' + transfer.state, transfer, fulfillment)
+      return
+    }
+    this.emit(direction + '_' + transfer.state, transfer)
   }
 
   disconnect () {
@@ -51,29 +190,48 @@ class PluginEthereum extends EventEmitter {
     return Promise.resolve(null)
   }
 
-  getPrefix () {
-    return Promise.resolve(this.prefix)
-  }
-
-  getAccount () {
-    return Promise.resolve(this.prefix + this.ownAccount)
-  }
-
-  getInfo () {
-    return {
-      precision: 10,
-      scale: 10
-    }
-  }
-
   isConnected () {
     return !!this.web3
   }
 
   sendTransfer (outgoingTransfer) {
-    return outgoingTransfer.executionCondition
-      ? this._sendUniversal(outgoingTransfer)
-      : this._sendOptimistic(outgoingTransfer)
+    return this._sendUniversal(outgoingTransfer)
+  }
+
+  fulfillCondition (transferId, fulfillment) {
+    console.log('transferId:', transferId)
+
+    const uuid = '0x' + transferId.replace(/\-/g, '')
+    const fulfillmentBytes = '0x' + Buffer.from(fulfillment.match(/cf:0:(.+)/)[1], 'base64').toString('hex')
+
+    console.log('uuid:', uuid)
+    console.log('fulfillmentBytes:', fulfillmentBytes)
+
+    return new Promise((resolve, reject) => {
+      const handle = (error, result) => {
+        this._log('got submitted: ', error, result)
+        if (error) {
+          reject(error)
+        } else {
+          this._log('Fulfill TX Hash:', result)
+          this._waitForReceipt(result)
+            .then(() => {
+              this._log('got receipt for TX')
+              resolve()
+            })
+        }
+      }
+
+      this.contract.fulfillTransfer.sendTransaction(
+        uuid,                                      // uuid
+        fulfillmentBytes,                    // data
+        {
+          from: this.address,
+          gas: 3000000 // TODO?: specify this?
+        },
+        handle
+      )
+    })
   }
 
   getBalance () {
@@ -83,59 +241,52 @@ class PluginEthereum extends EventEmitter {
 
     this._log('getting the balance')
     return new Promise((resolve) => {
-      const balance = this.web3.eth.getBalance(this.ownAccount)
+      const balance = this.web3.eth.getBalance(this.address)
       resolve(balance.toString(10))
     })
   }
 
-  _sendOptimistic (outgoingTransfer) {
+  _sendUniversal (outgoingTransfer) {
     if (!this.web3) {
       return Promise.reject(new Error('must be connected'))
-    } else if (outgoingTransfer.amount < 0) {
-      return Promise.reject(new Error('amount must be greater than or equal to 0'))
     }
 
-    const splitAddress = outgoingTransfer.account.split('.')
-    const localAccount = splitAddress[splitAddress.length - 1]
-
-    // TODO?: forbid repeat IDs?
-    const transfer = {
-      from: this.ownAccount,
-      to: localAccount,
-      value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
-      data: this.web3.toHex(JSON.stringify({
-        id: outgoingTransfer.id,
-        data: outgoingTransfer.data
-      }))
-    }
-    this._log('sending a transfer:', JSON.stringify(transfer, null, 2))
+    const account = outgoingTransfer.account.split('.')[3]
+    const uuid = '0x' + outgoingTransfer.id.replace(/\-/g, '')
 
     return new Promise((resolve, reject) => {
-      this.web3.eth.sendTransaction(transfer, (error, result) => {
-        this._log('got err:', error, '\n    and result:', result)
+      const handle = (error, result) => {
+        this._log('got submitted: ', error, result)
         if (error) {
           reject(error)
         } else {
-          this._log('Optimistic TX Hash:', result)
+          this._log('Universal TX Hash:', result)
+
           this._waitForReceipt(result)
             .then(() => {
-              this._log('wait for receipt complete')
-//              this.emit('outgoing_transfer', outgoingTransfer)
+              this._log('universal transaction mined')
+              this.notesToSelf[uuid] = JSON.stringify(outgoingTransfer.noteToSelf)
+              resolve()
             })
-          resolve()
         }
-      })
-    })
-  }
+      }
 
-  _listen () {
-    const filter = this.web3.eth.filter({
-      address: this.contractAddress,
-      topics: [this.web3.coinbase]
-    })
-    filter.watch((error, result) => {
-      if (error) this._log(error)
-      this._handleUpdate(result)
+      const condition = outgoingTransfer.executionCondition.match(/cc:0:3:(.+?):32/)[1]
+      const result = this.contract.createTransfer.sendTransaction(
+        account,
+        '0x' + Buffer.from(condition, 'base64').toString('hex'),
+        uuid,
+        this.web3.toHex(((new Date(outgoingTransfer.expiresAt)).getTime() / 1000) | 0),
+        this.web3.toHex(JSON.stringify(outgoingTransfer.data)),
+        {
+          from: this.address,
+          value: this.web3.toWei(outgoingTransfer.amount, 'ether'),
+          // TODO: calculate a more accurate gas price
+          gas: 3000000
+        },
+        handle
+      )
+      this._log('result: ' + result)
     })
   }
 
@@ -145,7 +296,7 @@ class PluginEthereum extends EventEmitter {
       const pollReceipt = () => {
         try {
           if (that.web3.eth.getTransactionReceipt(hash)) {
-            this._log('got receipt on', hash)
+            that._log('got receipt on', hash)
             resolve()
           } else {
             setTimeout(pollReceipt, 500)
@@ -157,81 +308,6 @@ class PluginEthereum extends EventEmitter {
 
       pollReceipt()
     })
-  }
-
-  _handleTransaction (error, transaction, web3) {
-    if (error) {
-      this._log(error)
-      return
-    }
-
-    if (this.seenTransactions[transaction.hash]) {
-      return
-    }
-    this.seenTransactions[transaction.hash] = true
-
-    let metadata
-    try {
-      metadata = JSON.parse(web3.toAscii(transaction.input))
-    } catch (e) {
-      this._log('error parsing transaction input. make sure it\'s json converted to hex')
-      return
-    }
-
-    const transfer = {
-      id: metadata.id,
-      amount: web3.fromWei(transaction.value, 'ether').toString(),
-      ledger: this.prefix,
-      data: metadata.data
-    }
-
-    if (transaction.to === this.ownAccount) {
-      this._log('transfer incoming. id:', transfer.id)
-      this.emit('incoming_transfer',
-        Object.assign({account: this.prefix + transaction.from}, transfer))
-    } else if (transaction.from === this.ownAccount) {
-      this._log('transfer outgoing. id:', transfer.id)
-      this.emit('outgoing_transfer',
-        Object.assign({account: this.prefix + transaction.to}, transfer))
-    }
-  }
-
-  _listenBlocks (error, result) {
-    if (!this.web3) return
-    if (error) {
-      this._log(error)
-      return
-    }
-
-    // web3 must be copied in case the plugin is disconnected midway through
-    // this function and this.web3 becomes undefined.
-    const web3 = this.web3
-    const block = web3.eth.getBlock(result)
-
-    if (this.seenBlocks[block.number]) {
-      return
-    }
-    this.seenBlocks[block.number] = true
-
-    this._log('filter got block #' + block.number)
-    web3.eth.getBlockTransactionCount(block.number, (e, count) => {
-      if (e) throw e
-      this._log('has', count, 'transactions.')
-
-      // get all transactions on the block by index
-      for (let i = 0; i < count; i++) {
-        web3.eth.getTransactionFromBlock(
-          block.number,
-          i,
-          (e, r) => { this._handleTransaction(e, r, web3) }
-        )
-      }
-    })
-  }
-
-  _handleUpdate (event) {
-    // TODO: what is this event made of?
-    this._log(JSON.stringify(event))
   }
 
   _log () {
