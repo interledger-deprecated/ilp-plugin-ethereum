@@ -2,11 +2,15 @@
 
 const base64url = require('base64url')
 const Web3 = require('web3')
-const EventEmitter = require('events')
+const EventEmitter2 = require('eventemitter2')
 const debug = require('debug')('ilp-plugin-ethereum')
+const HttpRpc = require('../model/rpc')
+const co = require('co')
+const Ethereum = require('../model/ethereum')
+
 const uuid4 = require('node-uuid')
 
-class PluginEthereum extends EventEmitter {
+class PluginEthereum extends EventEmitter2 {
 
   constructor (opts) {
     super()
@@ -20,12 +24,13 @@ class PluginEthereum extends EventEmitter {
     // set up RPC if peer supports it
     this._rpc = new HttpRpc(this)
     this._rpc.addMethod('send_message', this._handleSendMessage)
+    this._rpcUris = opts.rpcUris || {}
     this.isAuthorized = () => true
     this.receive = co.wrap(this._rpc._receive).bind(this._rpc)
 
     // information about ethereum contract
     this.contractAddress = opts.contract
-    this._prefix = 'g.crypto.etherum.'
+    this._prefix = 'g.crypto.ethereum.'
     this.web3 = null // local web3 instance
   }
 
@@ -38,21 +43,21 @@ class PluginEthereum extends EventEmitter {
 
   // lookup RPC for messaging, because on-ledger is too slow
   async sendMessage (message) {
-    assert(this._connected, 'plugin must be connected before sendMessage')
+    if (!this.web3) throw new Error('must be connected')
 
     if (this._rpcUris[message.to]) {
       await this._rpc.call(
         this._rpcUris[message.to],
         'send_message', this._prefix, [message])
 
-      this.emitAsync('outgoing_message', _message)
+      this.emitAsync('outgoing_message', message)
     } else {
       throw new Error('no RPC address for account', message.to)
     }
   }
 
   getAccount () {
-    return this._preifx + address
+    return this._prefix + this.address
   }
 
   getInfo () {
@@ -67,65 +72,77 @@ class PluginEthereum extends EventEmitter {
   async connect () {
     if (this.web3) return
 
+    debug('creating web3 instance')
     this.web3 = new Web3(new Web3.providers.HttpProvider(this.provider))
+    debug('creating contract instance')
     this.contract = Ethereum.getContract(this.web3, this.contractAddress)
 
+    debug('registering Debug event handler')
     Ethereum.onEvent(this.contract, 'Debug', (result) => {
       debug('Debug event:', result.args.msg)
     })
 
+    debug('registering DebugInt event handler')
     Ethereum.onEvent(this.contract, 'DebugInt', (result) => {
       console.log('DebugInt event:', result.args.msg, result.args.num)
     })
 
     const that = this
+    debug('registering Fulfill event handler')
     Ethereum.onEvent(this.contract, 'Fulfill', async function (result) {
       const { uuid, fulfillment } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
-      const memo = Buffer
-        .from((await Ethereum.getMemo(that.contract, uuid)).slice(2))
-        .toString('base64')
+      const memo = base64url(Buffer
+        .from((await Ethereum.getMemo(that.contract, uuid)).slice(2), 'hex'))
 
-      this._processUpdate({
-        id: uuid4.unparse(Buffer.from(uuid.substring(2), 'hex')),
-        from: this._toAccount(res[0]),
-        to: this._toAccount(res[1]),
-        amount: this.web3.fromWei(res[2]),
-        data: data,
-        executionCondition: 'cc:0:3:' + base64url(Buffer.from(res[3].slice(2), 'hex')) + ':32',
-        noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
-        expiresAt: (new Date(+res[4] * 1000)).toISOString(),
+      debug('result of Fulfill:', transfer, memo)
+
+      const unparsedId = uuid4.unparse(Buffer.from(uuid.substring(2), 'hex'))
+      that._processUpdate({
+        id: unparsedId,
+        from: Ethereum.hexToAccount(that._prefix, transfer[0]),
+        to: Ethereum.hexToAccount(that._prefix, transfer[1]),
+        amount: that.web3.fromWei(transfer[2], 'gwei'),
+        ilp: memo,
+        executionCondition: base64url(Buffer.from(transfer[3].slice(2), 'hex')),
+        noteToSelf: JSON.parse(that.notesToSelf[unparsedId] || null),
+        expiresAt: (new Date(+transfer[4] * 1000)).toISOString(),
         state: 'fulfill'
-      }, 'cf:0:' + base64url(Buffer.from(fulfillment.slice(2), 'hex')))
+      }, base64url(Buffer.from(fulfillment.slice(2), 'hex')))
     })
 
     // TODO: merge Update and Fulfill
+    debug('registering Update event handler')
     Ethereum.onEvent(this.contract, 'Update', async function (result) {
       const { uuid, fulfillment } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
-      const memo = Buffer
-        .from((await Ethereum.getMemo(that.contract, uuid)).slice(2))
-        .toString('base64')
+      const memo = base64url(Buffer
+        .from((await Ethereum.getMemo(that.contract, uuid)).slice(2), 'hex'))
 
-      this._processUpdate({
-        id: uuid4.unparse(Buffer.from(uuid.substring(2), 'hex')),
-        from: this._toAccount(res[0]),
-        to: this._toAccount(res[1]),
-        amount: this.web3.fromWei(res[2]),
-        data: data,
-        executionCondition: 'cc:0:3:' + base64url(Buffer.from(res[3].slice(2), 'hex')) + ':32',
-        noteToSelf: JSON.parse(this.notesToSelf[uuid] || null),
-        expiresAt: (new Date(+res[4] * 1000)).toISOString(),
-        state: Ethereum.stateToName(res[5])
+      debug('result of Update:', transfer, memo)
+
+      const unparsedId = uuid4.unparse(Buffer.from(uuid.substring(2), 'hex'))
+      that._processUpdate({
+        id: unparsedId,
+        from: Ethereum.hexToAccount(that._prefix, transfer[0]),
+        to: Ethereum.hexToAccount(that._prefix, transfer[1]),
+        amount: that.web3.fromWei(transfer[2], 'gwei'),
+        ilp: memo,
+        executionCondition: base64url(Buffer.from(transfer[3].slice(2), 'hex')),
+        noteToSelf: JSON.parse(that.notesToSelf[unparsedId] || null),
+        expiresAt: (new Date(+transfer[4] * 1000)).toISOString(),
+        state: Ethereum.stateToName(transfer[5])
       })
     })
 
     // TODO: find out how to be notified of connect
-    this.emit('connect')
+    debug('finished')
+    this.emitAsync('connect')
+
     return null
   }
 
@@ -142,6 +159,7 @@ class PluginEthereum extends EventEmitter {
     if (!direction) return
 
     transfer.direction = direction
+    transfer.ledger = this._prefix
 
     debug('emitting ' + direction + '_' + transfer.state)
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
@@ -169,12 +187,12 @@ class PluginEthereum extends EventEmitter {
   async fulfillCondition (transferId, fulfillment) {
     console.log('transferId:', transferId)
     const hash = await Ethereum.fulfillCondition(this.contract, {
-      address: this._address,
+      address: this.address,
       uuid: transferId,
       fulfillment
     })
 
-    await waitForReceipt(this.web3, hash)
+    await Ethereum.waitForReceipt(this.web3, hash)
     debug('fulfill transaction mined')
   }
 
@@ -191,11 +209,13 @@ class PluginEthereum extends EventEmitter {
 
   async sendTransfer (_transfer) {
     if (!this.web3) throw new Error('must be connected')
-    const transfer = Object.assign({ from: this._account }, _transfer)
-    const hash = await Ethereum.sendTransfer(this.contract, transfer)
+    const transfer = Object.assign({ from: this.address }, _transfer)
+    const hash = await Ethereum.sendTransfer(this.contract, transfer,
+      this.web3)
 
+    debug('awaiting receipt for transfer with id', transfer.id)
     await Ethereum.waitForReceipt(this.web3, hash)
-    this.notesToSelf[uuid] = JSON.stringify(transfer.noteToSelf)
+    this.notesToSelf[transfer.id] = JSON.stringify(transfer.noteToSelf)
     debug('send transaction mined')
   }
 }

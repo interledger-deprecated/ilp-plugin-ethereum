@@ -2,8 +2,8 @@
 
 const Web3 = require('web3')
 const debug = require('debug')('ilp-plugin-ethereum:ethereum')
-const abi = require('./src/abi/ledger.json')
-const accountRegex = /^g.crypto.ethereum.(.+?)\.?/
+const abi = require('../abi/ledger.json')
+const accountRegex = /^g.crypto.ethereum.(.+?)(\.|$)/
 const stateToName = (state) => {
   return ([ 'prepare', 'fulfill', 'cancel', 'reject' ])[state]
 }
@@ -11,10 +11,11 @@ const stateToName = (state) => {
 // TODO: better number conversion
 const gweiToWei = (amount) => (amount + '000000000')
 const accountToHex = (account) => account.match(accountRegex)[1]
+const hexToAccount = (prefix, account) => prefix + '0x' + account.substring(2).toUpperCase()
 const uuidToHex = (uuid) => '0x' + uuid.replace(/\-/g, '')
-const conditionToHex = (condition) => Buffer.from(condition, 'base64').toString('hex')
+const conditionToHex = (condition) => '0x' + Buffer.from(condition, 'base64').toString('hex')
 const fulfillmentToHex = conditionToHex
-const isoToTimestamp = (iso) => Math.round((new Date(iso)).getTime() / 1000)
+const isoToHex = (web3, iso) => web3.toHex(Math.round((new Date(iso)).getTime() / 1000))
 const ilpToData = (ilp) => '0x' + Buffer.from(ilp, 'base64').toString('hex')
 
 function waitForReceipt (web3, hash) {
@@ -46,18 +47,18 @@ function fulfillCondition (contract, { address, uuid, fulfillment }) {
   })
 }
 
-function sendTransfer (contract, transfer) {
+function sendTransfer (contract, transfer, web3) {
   return new Promise((resolve, reject) => {
     contract.createTransfer.sendTransaction(
       accountToHex(transfer.to), // destination
       conditionToHex(transfer.executionCondition), // condition
       uuidToHex(transfer.id), // uuid
-      isoToHex(transfer.expiresAt), // expiry
+      isoToHex(web3, transfer.expiresAt), // expiry
       ilpToData(transfer.ilp), // ilp
       { from: transfer.from,
         value: gweiToWei(transfer.amount),
         // TODO: how much gas is correct?
-        gas: 300000 }, (error, result) => {
+        gas: 1000000 }, (error, result) => {
           if (error) reject(error)
           resolve(result)
         })
@@ -93,7 +94,9 @@ function onEvent (contract, name, callback) {
       return
     }
 
-    callback(result)    
+    Promise.resolve(callback(result)).catch((e) => {
+      console.error('Ethereum onEvent callback error:', e.stack)
+    })
   })
 }
 
@@ -103,5 +106,8 @@ module.exports = {
   getTransfer,
   getContract,
   waitForReceipt,
-  sendTransfer
+  sendTransfer,
+  fulfillCondition,
+  stateToName,
+  hexToAccount
 }
