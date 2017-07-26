@@ -30,7 +30,7 @@ class PluginEthereum extends EventEmitter2 {
 
     // information about ethereum contract
     this.contractAddress = opts.contract
-    this._prefix = 'g.crypto.ethereum.'
+    this._prefix = opts.prefix || 'g.crypto.ethereum.'
     this.web3 = null // local web3 instance
   }
 
@@ -62,7 +62,7 @@ class PluginEthereum extends EventEmitter2 {
 
   getInfo () {
     return {
-      prefix: 'g.crypto.ethereum.',
+      prefix: this._prefix,
       currencyCode: 'ETH',
       currencyScale: 9,
       connectors: []
