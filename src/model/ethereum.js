@@ -1,6 +1,5 @@
 'use strict'
 
-const Web3 = require('web3')
 const debug = require('debug')('ilp-plugin-ethereum:ethereum')
 const abi = require('../abi/ledger.json')
 const stateToName = (state) => {
@@ -11,7 +10,7 @@ const stateToName = (state) => {
 const gweiToWei = (amount) => (amount + '000000000')
 const accountToHex = (account) => account.split('.').reverse()[0]
 const hexToAccount = (prefix, account) => prefix + '0x' + account.substring(2).toUpperCase()
-const uuidToHex = (uuid) => '0x' + uuid.replace(/\-/g, '')
+const uuidToHex = (uuid) => '0x' + uuid.replace(/-/g, '')
 const conditionToHex = (condition) => '0x' + Buffer.from(condition, 'base64').toString('hex')
 const fulfillmentToHex = conditionToHex
 const isoToHex = (web3, iso) => web3.toHex(Math.round((new Date(iso)).getTime() / 1000))
@@ -27,7 +26,7 @@ function waitForReceipt (web3, hash) {
         debug('poll error:', e.message)
       }
     }
-    
+
     poll()
   })
 }
