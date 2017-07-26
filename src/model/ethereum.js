@@ -3,14 +3,13 @@
 const Web3 = require('web3')
 const debug = require('debug')('ilp-plugin-ethereum:ethereum')
 const abi = require('../abi/ledger.json')
-const accountRegex = /^g.crypto.ethereum.(.+?)(\.|$)/
 const stateToName = (state) => {
   return ([ 'prepare', 'fulfill', 'cancel', 'reject' ])[state]
 }
 
 // TODO: better number conversion
 const gweiToWei = (amount) => (amount + '000000000')
-const accountToHex = (account) => account.match(accountRegex)[1]
+const accountToHex = (account) => account.split('.').reverse()[0]
 const hexToAccount = (prefix, account) => prefix + '0x' + account.substring(2).toUpperCase()
 const uuidToHex = (uuid) => '0x' + uuid.replace(/\-/g, '')
 const conditionToHex = (condition) => '0x' + Buffer.from(condition, 'base64').toString('hex')
