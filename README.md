@@ -30,7 +30,7 @@ To test the plugin, first download this repository and run `npm install`. To ins
 ```js
 {
   "provider": "http://localhost:8000", // URL of your web3 provider
-  "account":  "0x20f5beb5c3858433633f53f8e08c5da19d17516e", // account for this plugin (must be unlocked)
+  "address":  "0x20f5beb5c3858433633f53f8e08c5da19d17516e", // address of the account for this plugin (must be unlocked)
   "contract": "0x0000000000000000000000000000000000000000" // should actually be the deployed contract address
 }
 ```
