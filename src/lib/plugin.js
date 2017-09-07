@@ -17,6 +17,7 @@ class PluginEthereum extends EventEmitter2 {
 
     this.provider = opts.provider // http address for web3 provider
     this.address = opts.address
+    this.secret = opts.secret
 
     // this can't be done on ethereum
     this.notesToSelf = {}
@@ -138,6 +139,10 @@ class PluginEthereum extends EventEmitter2 {
         state: Ethereum.stateToName(transfer[5])
       })
     })
+
+    console.log('connect is unlocking: await this.web3.personal.unlockAccount(', this.address, this.secret)
+    await this.web3.personal.unlockAccount(this.address, this.secret)
+    console.log('connect was unlocking: await this.web3.personal.unlockAccount(', this.address, this.secret)
 
     // TODO: find out how to be notified of connect
     debug('finished')
