@@ -58,12 +58,12 @@ function fulfillCondition (contract, { address, uuid, fulfillment }) {
 function sendTransfer (contract, transfer, web3) {
   return new Promise((resolve, reject) => {
     contract.createTransfer.sendTransaction(
-      accountToHex(transfer.to), // destination
+      accountToHex(transfer.to, transfer.ledger), // destination
       conditionToHex(transfer.executionCondition), // condition
       uuidToHex(transfer.id), // uuid
       isoToHex(web3, transfer.expiresAt), // expiry
       ilpToData(transfer.ilp), // ilp
-      { from: accountToHex(transfer.from),
+      { from: accountToHex(transfer.from, transfer.ledger),
         value: gweiToWei(transfer.amount),
         // TODO: how much gas is correct?
         gas: 1000000 }, (error, result) => {
