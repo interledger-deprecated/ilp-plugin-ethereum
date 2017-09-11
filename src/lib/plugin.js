@@ -16,7 +16,7 @@ class PluginEthereum extends EventEmitter2 {
     super()
 
     this.provider = opts.provider // http address for web3 provider
-    this.address = opts.address
+    this.account = opts.account
     this.secret = opts.secret
 
     // this can't be done on ethereum
@@ -58,7 +58,7 @@ class PluginEthereum extends EventEmitter2 {
   }
 
   getAccount () {
-    return this._prefix + this.address
+    return this._prefix + this.account
   }
 
   getInfo () {
@@ -140,9 +140,9 @@ class PluginEthereum extends EventEmitter2 {
       })
     })
 
-    console.log('connect is unlocking: await this.web3.personal.unlockAccount(', this.address, this.secret)
-    await this.web3.personal.unlockAccount(this.address, this.secret)
-    console.log('connect was unlocking: await this.web3.personal.unlockAccount(', this.address, this.secret)
+    console.log('connect is unlocking: await this.web3.personal.unlockAccount(', this.account, this.secret)
+    await this.web3.personal.unlockAccount(this.account, this.secret)
+    console.log('connect was unlocking: await this.web3.personal.unlockAccount(', this.account, this.secret)
 
     // TODO: find out how to be notified of connect
     debug('finished')
@@ -192,7 +192,7 @@ class PluginEthereum extends EventEmitter2 {
   async fulfillCondition (transferId, fulfillment) {
     console.log('transferId:', transferId)
     const hash = await Ethereum.fulfillCondition(this.contract, {
-      address: this.address,
+      address: this.account,
       uuid: transferId,
       fulfillment
     })
@@ -206,7 +206,7 @@ class PluginEthereum extends EventEmitter2 {
 
     // TODO: better number conversion
     debug('getting the balance')
-    const [ , balance ] = this.web3.eth.getBalance(this.address)
+    const [ , balance ] = this.web3.eth.getBalance(this.account)
       .match(/^(.+)\d{9}/) || [ , '0' ]
 
     return balance
@@ -214,7 +214,7 @@ class PluginEthereum extends EventEmitter2 {
 
   async sendTransfer (_transfer) {
     if (!this.web3) throw new Error('must be connected')
-    const transfer = Object.assign({ from: this.address }, _transfer)
+    const transfer = Object.assign({ from: this.account }, _transfer)
     const hash = await Ethereum.sendTransfer(this.contract, transfer,
       this.web3)
 
