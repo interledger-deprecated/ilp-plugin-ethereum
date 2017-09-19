@@ -55,7 +55,7 @@ function sendTransfer (contract, transfer, web3) {
       uuidToHex(transfer.id), // uuid
       isoToHex(web3, transfer.expiresAt), // expiry
       ilpToData(transfer.ilp), // ilp
-      { from: transfer.from,
+      { from: accountToHex(transfer.from),
         value: gweiToWei(transfer.amount),
         // TODO: how much gas is correct?
         gas: 1000000 }, (error, result) => {
