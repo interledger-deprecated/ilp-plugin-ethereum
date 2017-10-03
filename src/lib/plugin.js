@@ -11,7 +11,6 @@ const Ethereum = require('../model/ethereum')
 const uuid4 = require('node-uuid')
 
 class PluginEthereum extends EventEmitter2 {
-
   constructor (opts) {
     super()
 
@@ -116,7 +115,7 @@ class PluginEthereum extends EventEmitter2 {
     // TODO: merge Update and Fulfill
     debug('registering Update event handler')
     Ethereum.onEvent(this.contract, 'Update', async function (result) {
-      const { uuid, fulfillment } = result.args
+      const { uuid } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
@@ -202,7 +201,7 @@ class PluginEthereum extends EventEmitter2 {
     // TODO: better number conversion
     debug('getting the balance')
     const [ , balance ] = this.web3.eth.getBalance(this.address)
-      .match(/^(.+)\d{9}/) || [ , '0' ]
+      .match(/^(.+)\d{9}/) || [ undefined, '0' ]
 
     return balance
   }
