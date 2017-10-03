@@ -11,12 +11,12 @@ const Ethereum = require('../model/ethereum')
 const uuid4 = require('node-uuid')
 
 class PluginEthereum extends EventEmitter2 {
-
   constructor (opts) {
     super()
 
     this.provider = opts.provider // http address for web3 provider
     this.address = opts.address
+    this.secret = opts.secret // optional, not needed if account is already unlocked at the provider
 
     // this can't be done on ethereum
     this.notesToSelf = {}
@@ -116,7 +116,7 @@ class PluginEthereum extends EventEmitter2 {
     // TODO: merge Update and Fulfill
     debug('registering Update event handler')
     Ethereum.onEvent(this.contract, 'Update', async function (result) {
-      const { uuid, fulfillment } = result.args
+      const { uuid } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
@@ -138,6 +138,13 @@ class PluginEthereum extends EventEmitter2 {
         state: Ethereum.stateToName(transfer[5])
       })
     })
+
+    // The user may choose to pass in the address of an account that is already
+    // unlocked at the provider, or pass in both address and secret, in which
+    // case the plugin will take care of unlocking the account:
+    if (this.secret) {
+      await this.web3.personal.unlockAccount(this.address, this.secret)
+    }
 
     // TODO: find out how to be notified of connect
     debug('finished')
@@ -202,7 +209,7 @@ class PluginEthereum extends EventEmitter2 {
     // TODO: better number conversion
     debug('getting the balance')
     const [ , balance ] = this.web3.eth.getBalance(this.address)
-      .match(/^(.+)\d{9}/) || [ , '0' ]
+      .match(/^(.+)\d{9}/) || [ undefined, '0' ]
 
     return balance
   }
