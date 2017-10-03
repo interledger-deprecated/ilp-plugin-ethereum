@@ -16,6 +16,7 @@ class PluginEthereum extends EventEmitter2 {
 
     this.provider = opts.provider // http address for web3 provider
     this.address = opts.address
+    this.secret = opts.secret // optional, not needed if account is already unlocked at the provider
 
     // this can't be done on ethereum
     this.notesToSelf = {}
@@ -137,6 +138,13 @@ class PluginEthereum extends EventEmitter2 {
         state: Ethereum.stateToName(transfer[5])
       })
     })
+
+    // The user may choose to pass in the address of an account that is already
+    // unlocked at the provider, or pass in both address and secret, in which
+    // case the plugin will take care of unlocking the account:
+    if (this.secret) {
+      await this.web3.personal.unlockAccount(this.address, this.secret)
+    }
 
     // TODO: find out how to be notified of connect
     debug('finished')
