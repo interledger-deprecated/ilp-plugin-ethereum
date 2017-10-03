@@ -13,7 +13,7 @@ const accountToHex = (account, ledgerPrefix) => {
   if (!account.startsWith(ledgerPrefix)) {
     throw new Error('account does not start with ledger prefix')
   }
-  const match = account.substring(ledgerPrefix.length).match(/^(0x[0-9A-F]{40})$/g)
+  const match = account.substring(ledgerPrefix.length).match(/^(0x[0-9A-F]{40})(\.|$)/g)
   if (match === null) {
     throw new Error('account is not a 40-digit upper case hex number')
   }
