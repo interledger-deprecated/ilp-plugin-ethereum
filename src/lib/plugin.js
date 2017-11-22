@@ -90,7 +90,7 @@ class PluginEthereum extends EventEmitter2 {
     const that = this
     debug('registering Fulfill event handler')
     Ethereum.onEvent(this.contract, 'Fulfill', async function (result) {
-      const { uuid, fulfillment } = result.args
+      const { uuid, fulfillment, fulfillmentData } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
@@ -110,7 +110,8 @@ class PluginEthereum extends EventEmitter2 {
         noteToSelf: JSON.parse(that.notesToSelf[unparsedId] || null),
         expiresAt: (new Date(+transfer[4] * 1000)).toISOString(),
         state: 'fulfill'
-      }, base64url(Buffer.from(fulfillment.slice(2), 'hex')))
+      }, base64url(Buffer.from(fulfillment.slice(2), 'hex')),
+        base64url(Buffer.from(fulfillmentData.slice(2), 'hex')))
     })
 
     // TODO: merge Update and Fulfill
@@ -146,7 +147,7 @@ class PluginEthereum extends EventEmitter2 {
     return null
   }
 
-  _processUpdate (transfer, fulfillment) {
+  _processUpdate (transfer, fulfillment, fulfillmentData) {
     let direction
 
     // TODO: make this more concise 
@@ -165,7 +166,7 @@ class PluginEthereum extends EventEmitter2 {
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     if (transfer.state === 'fulfill') {
       debug('emitting the fulfill')
-      this.emit(direction + '_' + transfer.state, transfer, fulfillment)
+      this.emit(direction + '_' + transfer.state, transfer, fulfillment, fulfillmentData)
       return
     }
     this.emit(direction + '_' + transfer.state, transfer)
@@ -184,12 +185,13 @@ class PluginEthereum extends EventEmitter2 {
     return !!this.web3
   }
 
-  async fulfillCondition (transferId, fulfillment) {
+  async fulfillCondition (transferId, fulfillment, fulfillmentData) {
     console.log('transferId:', transferId)
     const hash = await Ethereum.fulfillCondition(this.contract, {
       address: this.address,
       uuid: transferId,
-      fulfillment
+      fulfillment,
+      fulfillmentData
     })
 
     await Ethereum.waitForReceipt(this.web3, hash)
