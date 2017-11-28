@@ -156,7 +156,7 @@ class PluginEthereum extends EventEmitter2 {
   _processUpdate (transfer, fulfillment) {
     let direction
 
-    // TODO: make this more concise 
+    // TODO: make this more concise
     debug('I AM ' + this.getAccount())
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     debug('eq?', this.getAccount() === transfer.from)

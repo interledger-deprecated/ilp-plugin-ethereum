@@ -49,7 +49,7 @@ contract('Plugin', function (accounts) {
         assert.isFalse(this.plugin.isConnected(), 'plugin not start connected')
         done()
       })
-  
+
       this.plugin.on('connect', () => {
         assert.isTrue(this.plugin.isConnected())
         this.plugin.disconnect()
@@ -74,7 +74,7 @@ contract('Plugin', function (accounts) {
       this.plugin.on('connect', done)
       this.plugin.connect()
     })
-    
+
     it('should emit \'outgoing transfer\'', function (done) {
       const id = uuid()
 
