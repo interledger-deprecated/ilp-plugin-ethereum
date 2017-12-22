@@ -1,5 +1,6 @@
 'use strict'
 
+const IlpPacket = require('ilp-packet')
 const base64url = require('base64url')
 const Web3 = require('web3')
 const EventEmitter2 = require('eventemitter2')
@@ -24,6 +25,7 @@ class PluginEthereum extends EventEmitter2 {
     // set up RPC if peer supports it
     this._rpc = new HttpRpc(this)
     this._rpc.addMethod('send_message', this._handleSendMessage)
+    this._rpc.addMethod('send_request', this._handleRequest)
     this._rpcUris = opts.rpcUris || {}
     this.isAuthorized = () => true
     this.receive = co.wrap(this._rpc._receive).bind(this._rpc)
@@ -32,6 +34,58 @@ class PluginEthereum extends EventEmitter2 {
     this.contractAddress = opts.contract
     this._prefix = opts.prefix || 'g.crypto.ethereum.'
     this.web3 = null // local web3 instance
+  }
+
+  registerRequestHandler (handler) {
+    if (this._requestHandler) {
+      throw new Error('requestHandler is already registered')
+    }
+
+    if (typeof handler !== 'function') {
+      throw new Error('requestHandler must be a function')
+    }
+
+    this._requestHandler = handler
+  }
+
+  deregisterRequestHandler () {
+    this._requestHandler = null
+  }
+
+  async sendRequest (message) {
+    this.emitAsync('outgoing_request', message)
+
+    const response = await this._rpc.call('send_request', this._prefix, [message])
+    this.emitAsync('incoming_response', response)
+
+    return response
+  }
+
+  async _handleRequest (message) {
+    this.emitAsync('incoming_request', message)
+
+    if (!this._requestHandler) {
+      throw new NotAcceptedError('no request handler registered')
+    }
+
+    const response = await this._requestHandler(message)
+      .catch((e) => ({
+        ledger: message.ledger,
+        to: message.from,
+        from: this.getAccount(),
+        ilp: base64url(IlpPacket.serializeIlpError({
+          code: 'F00',
+          name: 'Bad Request',
+          triggeredBy: this.getAccount(),
+          forwardedBy: [],
+          triggeredAt: new Date(),
+          data: JSON.stringify({ message: e.message })
+        }))
+      }))
+
+    this.emitAsync('outgoing_response', response)
+
+    return response
   }
 
   // used when peer has enabled rpc
@@ -90,7 +144,7 @@ class PluginEthereum extends EventEmitter2 {
     const that = this
     debug('registering Fulfill event handler')
     Ethereum.onEvent(this.contract, 'Fulfill', async function (result) {
-      const { uuid, fulfillment } = result.args
+      const { uuid, fulfillment, fulfillmentData } = result.args
 
       const transfer = (await Ethereum.getTransfer(that.contract, uuid))
         .map((e) => e.toString())
@@ -110,7 +164,8 @@ class PluginEthereum extends EventEmitter2 {
         noteToSelf: JSON.parse(that.notesToSelf[unparsedId] || null),
         expiresAt: (new Date(+transfer[4] * 1000)).toISOString(),
         state: 'fulfill'
-      }, base64url(Buffer.from(fulfillment.slice(2), 'hex')))
+      }, base64url(Buffer.from(fulfillment.slice(2), 'hex')),
+        base64url(Buffer.from(fulfillmentData.slice(2), 'hex')))
     })
 
     // TODO: merge Update and Fulfill
@@ -153,7 +208,7 @@ class PluginEthereum extends EventEmitter2 {
     return null
   }
 
-  _processUpdate (transfer, fulfillment) {
+  _processUpdate (transfer, fulfillment, fulfillmentData) {
     let direction
 
     // TODO: make this more concise
@@ -172,7 +227,7 @@ class PluginEthereum extends EventEmitter2 {
     debug('transfer is: ' + JSON.stringify(transfer, null, 2))
     if (transfer.state === 'fulfill') {
       debug('emitting the fulfill')
-      this.emit(direction + '_' + transfer.state, transfer, fulfillment)
+      this.emit(direction + '_' + transfer.state, transfer, fulfillment, fulfillmentData)
       return
     }
     this.emit(direction + '_' + transfer.state, transfer)
@@ -191,12 +246,13 @@ class PluginEthereum extends EventEmitter2 {
     return !!this.web3
   }
 
-  async fulfillCondition (transferId, fulfillment) {
+  async fulfillCondition (transferId, fulfillment, fulfillmentData) {
     console.log('transferId:', transferId)
     const hash = await Ethereum.fulfillCondition(this.contract, {
       address: this.address,
       uuid: transferId,
-      fulfillment
+      fulfillment,
+      fulfillmentData
     })
 
     await Ethereum.waitForReceipt(this.web3, hash)

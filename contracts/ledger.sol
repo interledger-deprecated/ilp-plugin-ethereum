@@ -27,7 +27,7 @@ contract Ledger {
    * either the sender or the receiver.
    */
   event Update (bytes16 indexed uuid, State state);
-  event Fulfill (bytes16 indexed uuid, bytes fulfillment);
+  event Fulfill (bytes16 indexed uuid, bytes32 fulfillment, bytes fulfillmentData);
   event Debug (string msg);
   event DebugInt (string msg, uint num);
 
@@ -36,6 +36,7 @@ contract Ledger {
    */
   mapping (bytes16 => Transfer) public transfers;
   mapping (bytes16 => bytes) public memos;
+  mapping (bytes16 => bytes) public fulfillmentData;
 
   function test (bytes16 uuid) public payable returns (int8) {
     Update(uuid, State.Propose);
@@ -96,7 +97,8 @@ contract Ledger {
    */
   function fulfillTransfer (
     bytes16 uuid,
-    bytes fulfillment
+    bytes32 fulfillment,
+    bytes fulfillmentData
   ) public payable returns (int8) {
       Debug('starting fulfill');
       var transfer = transfers[uuid];
@@ -136,9 +138,10 @@ contract Ledger {
       if (transfer.receiver.send(transfer.amount)) {
         transfer.state = State.Fulfill;
         transfers[uuid] = transfer;
+        fulfillmentData[uuid] = fulfillmentData;
 
         /* inform the two parties about this */
-        Fulfill(uuid, fulfillment);
+        Fulfill(uuid, fulfillment, fulfillmentData);
 
         return 0;
       } else {
